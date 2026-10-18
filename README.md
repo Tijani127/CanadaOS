@@ -68,14 +68,22 @@ Needs a Linux environment. Easiest: WSL2 + Debian on Windows.
 sudo apt update && sudo apt install -y live-build debootstrap qemu-system-x86
 ./scripts/build-iso.sh                       # from the repo root
 # grind. ~30-60 min depending on network/mirrors.
-qemu-system-x86_64 -m 4096 -cdrom build/canadaos-amd64.iso -enable-kvm
+qemu-system-x86_64 -m 4096 -cdrom build/live-image-amd64.iso -enable-kvm
 ```
 
 Or open the ISO in VirtualBox / any PC USB. LightDM logs in as `user`
-automatically and boots straight into the CanadaOS desktop.
+automatically (password `live` if the login screen ever asks) and boots
+straight into the CanadaOS desktop.
 
-If lightdm autologin isn't picked up on first boot, choose the **CanadaOS**
-session from the session picker.
+### If the desktop session crashes and you're bounced back to a login screen
+
+From the greeter choose the **CanadaOS (debug — openbox)** session (top right
+corner), log in with `user` / `live` — a minimal window manager and terminal
+open, where the shell can be launched by hand so any traceback is visible:
+
+```sh
+PYTHONPATH=/usr/lib/canadaos python3 -m canadaos.main
+```
 
 ## Debug / develop the shell without an ISO
 
