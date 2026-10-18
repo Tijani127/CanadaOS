@@ -59,7 +59,7 @@ jobs:
 
       - name: Desktop smoke test — run the shell under Xvfb and screenshot it
         run: |
-          apt-get install -y --no-install-recommends xvfb imagemagick \
+          apt-get install -y --no-install-recommends xvfb imagemagick dbus-x11 \
             python3 python3-gi python3-cairo gir1.2-gtk-4.0 \
             fonts-noto-color-emoji fonts-dejavu adwaita-icon-theme
           rm -rf /tmp/canada-smoke && mkdir -p /tmp/canada-smoke/dist
@@ -77,6 +77,9 @@ jobs:
           echo "---- smoke shell log ----"
           cat smoke-shell.log || true
           ls -la dist/
+          # upload-artifact resolves paths against the workspace, so copy it back
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          cp dist/desktop-screenshot.png "$GITHUB_WORKSPACE/dist/desktop-screenshot.png"
 
       - name: Upload desktop screenshot
         uses: actions/upload-artifact@v4

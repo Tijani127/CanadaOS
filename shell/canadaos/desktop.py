@@ -303,15 +303,28 @@ class DesktopWindow(Gtk.ApplicationWindow):
         welcome.add_css_class("welcome-note")
         welcome.set_sensitive(False)
         welcome.set_justify(Gtk.Justification.CENTER)
-        self.canvas.put(welcome, 0, 0)
+        welcome.set_visible(True)
+        try:
+            # GTK 4.8+: let clicks fall through to the desktop beneath.
+            welcome.set_can_target(False)
+        except Exception:
+            pass
         self.welcome = welcome
-        self.canvas.connect("resize", self._center_welcome)
+
+        # GTK4 removed the "resize"/"size-allocate" signals on widgets, so we
+        # center the welcome note with an Overlay instead of signal math;
+        # GTK centers overlay children for us via halign/valign.
+        self.canvas_overlay = Gtk.Overlay()
+        self.canvas_overlay.set_child(self.canvas)
+        self.canvas_overlay.add_overlay(self.welcome)
+        self.canvas_overlay.set_hexpand(True)
+        self.canvas_overlay.set_vexpand(True)
 
         self.topbar = TopBar(self)
         self.dock = Dock(self)
 
         root.append(self.topbar)
-        root.append(self.canvas)
+        root.append(self.canvas_overlay)
         root.append(self.dock)
         self.set_child(root)
 
@@ -321,28 +334,12 @@ class DesktopWindow(Gtk.ApplicationWindow):
             self.launch("settings")
             self.launch("notepad")
 
-        self._center_welcome()
-
     # ---------- canvas helpers ----------
     def get_canvas_size(self):
         w, h = self.canvas.get_allocated_width(), self.canvas.get_allocated_height()
         if w <= 1:
             w, h = self.get_allocated_width(), max(400, self.get_allocated_height() - 90)
         return w, h
-
-    def _center_welcome(self, *a):
-        fig_w, fig_h = self.get_canvas_size()
-        try:
-            alloc = self.welcome.get_allocated_width() or 1
-            alloc_h = self.welcome.get_allocated_height() or 1
-        except Exception:
-            return
-        x = max(0, fig_w // 2 - alloc // 2)
-        y = max(50, fig_h // 3 - alloc_h // 2)
-        try:
-            self.canvas.move(self.welcome, x, y)
-        except Exception:
-            pass
 
     def set_wallpaper(self, value):
         for name in ("wall-midnight-yukon", "wall-forest-night", "wall-prairie-night"):
