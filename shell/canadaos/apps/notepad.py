@@ -34,12 +34,20 @@ class Notepad(Gtk.Box):
         scroller.set_child(self.view)
 
         self.status_label = base.status_bar("Notepad. Sorry, no autosave, eh.")
-        self.status = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-        self.status.append(self.status_label)
-        self.status.append(wrap_toggle)
         self.char_count = row_label("chars 0 · words 0", "muted-label", align=Gtk.Align.END)
         self.char_count.set_hexpand(True)
         self.char_count.set_halign(Gtk.Align.END)
+        self.file_label = row_label("", "muted-label")
+
+        wrap_toggle = Gtk.CheckButton(label="Wrap")
+        wrap_toggle.set_active(True)
+        wrap_toggle.connect("toggled",
+                            lambda b: self.view.set_wrap_mode(Gtk.WrapMode.WORD if b.get_active() else Gtk.WrapMode.NONE))
+
+        self.status = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        self.status.append(self.status_label)
+        self.status.append(wrap_toggle)
+        self.status.append(self.file_label)
         self.status.append(self.char_count)
         self.append(toolbar)
         self.append(scroller)
@@ -47,12 +55,6 @@ class Notepad(Gtk.Box):
 
         self.buffer.connect("changed", self._changed)
         self._count()
-        self.file_label = row_label("", "muted-label")
-        wrap_toggle = Gtk.CheckButton(label="Wrap")
-        wrap_toggle.set_active(True)
-        wrap_toggle.connect("toggled",
-                            lambda b: self.view.set_wrap_mode(Gtk.WrapMode.WORD if b.get_active() else Gtk.WrapMode.NONE))
-        self.status.append(wrap_toggle)
 
         if opts and opts.get("path"):
             self.load_path(opts["path"])

@@ -46,8 +46,20 @@ class CanadaWindow(Gtk.Box):
 
         content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         content_box.add_css_class("canada-content")
-        factory = factory_for(app_info)
-        content = factory(self, {})
+        try:
+            factory = factory_for(app_info)
+            content = factory(self, {})
+        except Exception:
+            # One broken app must never take down the whole desktop, eh.
+            import traceback
+            traceback.print_exc()
+            err = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            err.add_css_class("app-root")
+            msg = Gtk.Label(label="{} — apologetically crashed, sorry, eh 🍁\n\n(run the debug session for the traceback)".format(app_info.title))
+            msg.set_wrap(True)
+            msg.set_sensitive(False)
+            err.append(msg)
+            content = err
         content_box.append(content)
 
         content_overlay = Gtk.Overlay()
