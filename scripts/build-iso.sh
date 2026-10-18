@@ -25,7 +25,7 @@ lb config noauto \
   --distribution bookworm \
   --architectures amd64 \
   --binary-images iso-hybrid \
-  --bootappend-live "boot=live components quiet splash" \
+  --bootappend-live "boot=live components quiet splash console=ttyS0" \
   --iso-volume "CanadaOS-1.0-amd64" \
   --iso-application "CanadaOS 1.0 'Double-Double'" \
   --iso-publisher "canadaos;ca" \
