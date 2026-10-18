@@ -66,6 +66,7 @@ class CanadaWindow(Gtk.Box):
         content_overlay.set_child(content_box)
         content_overlay.set_vexpand(True)   # THE fix for "apps look empty"
         content_overlay.set_hexpand(True)
+        self.content_overlay = content_overlay
 
         grip = Gtk.Box()
         grip.set_size_request(18, 18)
@@ -96,6 +97,7 @@ class CanadaWindow(Gtk.Box):
         self._content = content
         self._move_start = None
         self._resize_start = None
+        self._size = (app_info.width, app_info.height)
         self._was_max = False
         self._prev_pos = None
         self._prev_size = None
@@ -108,22 +110,20 @@ class CanadaWindow(Gtk.Box):
         self.desktop.close_window(self)
 
     def _maximize(self, btn):
+        canvas_w, canvas_h = self.desktop.get_canvas_size()
+        canvas_w, canvas_h = max(320, canvas_w), max(240, canvas_h)
         if self._was_max:
-            self.pos = self._prev_pos or (60, 60)
-            self.desktop.reposition(self)
-            self.set_size_request(self._prev_size)
-            self.app_info.width, self.app_info.height = self._prev_size
+            self.set_size_request(*self._prev_size)
+            self.pos = self._prev_pos or (40, 40)
             self._was_max = False
         else:
-            self._prev_size = (self.app_info.width, self.app_info.height)
+            self._prev_size = self._size
             self._prev_pos = self.pos
             self.pos = (0, 0)
-            self.desktop.reposition(self)
-            w, h = self.desktop.get_canvas_size()
-            self.set_size_request(w, h)
-            self.app_info.width, self.app_info.height = w, h
+            self._size = (canvas_w, canvas_h)
+            self.set_size_request(canvas_w, canvas_h)
             self._was_max = True
-        self.set_size_request(max(self.app_info.width, 360), max(self.app_info.height, 240))
+        self.desktop.reposition(self)
 
     # ---------- moving ----------
     def _drag_begin(self, gesture, start_x, start_y):
@@ -148,7 +148,7 @@ class CanadaWindow(Gtk.Box):
 
     # ---------- resizing ----------
     def _resize_begin(self, gesture, start_x, start_y):
-        self._resize_start = (self.app_info.width, self.app_info.height)
+        self._resize_start = self._size
 
     def _resize_update(self, gesture, offset_x, offset_y):
         if not self._resize_start or self._was_max:
@@ -156,7 +156,7 @@ class CanadaWindow(Gtk.Box):
         new_w = max(360, self._resize_start[0] + int(offset_x))
         new_h = max(240, self._resize_start[1] + int(offset_y))
         self.set_size_request(new_w, new_h)
-        self.app_info.width, self.app_info.height = new_w, new_h
+        self._size = (new_w, new_h)
 
     def _resize_end(self, gesture, offset_x, offset_y):
         self._resize_start = None
@@ -174,6 +174,7 @@ class TopBar(Gtk.Box):
 
         menu_btn = Gtk.MenuButton(label="Eh-Menu ▾")
         menu_btn.add_css_class("topbar-menu-btn")
+        self.menu_btn = menu_btn
         menu_btn.set_popover(self._build_launcher(desktop))
         self.append(menu_btn)
 
@@ -194,6 +195,16 @@ class TopBar(Gtk.Box):
     def _tick_clock(self):
         self.clock.set_text(time.strftime("%a %H:%M") + " 🍁")
         return True
+
+    def rebuild_launcher(self):
+        """Called after Dev Mode toggles so tiles show the current locks."""
+        old = self.menu_btn.get_popover()
+        self.menu_btn.set_popover(self._build_launcher(self.desktop))
+        try:
+            if old is not None:
+                old.unparent()
+        except Exception:
+            pass
 
     def _build_launcher(self, desktop):
         popover = Gtk.Popover()
@@ -281,6 +292,7 @@ class DesktopWindow(Gtk.ApplicationWindow):
         self.windows = {}
         self.minimized = []
         self._cascade = 0
+        self._toast = None
 
         self.set_default_size(1280, 800)
         try:
@@ -341,10 +353,23 @@ class DesktopWindow(Gtk.ApplicationWindow):
         self.set_child(root)
 
         # Headless screenshot mode for CI: open a couple of apps so the
-        # smoke-test screenshot actually shows app content.
-        if os.environ.get("CANADAOS_SMOKE"):
+        # smoke-test screenshot actually shows app content. CANADAOS_SMOKE_APP
+        # targets one app (the CI app-matrix), CANADAOS_MAX maximizes it to
+        # test the "maximize pushes things off-screen" bug, eh.
+        smoke_app = os.environ.get("CANADAOS_SMOKE_APP")
+        if smoke_app:
+            win = self.launch(smoke_app)
+            if win is not None and os.environ.get("CANADAOS_MAX") == "1":
+                win._maximize(None)
+        elif os.environ.get("CANADAOS_SMOKE"):
             self.launch("settings")
             self.launch("notepad")
+            if os.environ.get("CANADAOS_MAX") == "1":
+                self.windows["notepad"]._maximize(None)
+
+        # VM screens can be small (800x600 VirtualBox default!): keep every
+        # window inside the canvas no matter how allocations change.
+        GLib.timeout_add(1000, self._clamp_windows)
 
     # ---------- canvas helpers ----------
     def get_canvas_size(self):
@@ -443,6 +468,49 @@ class DesktopWindow(Gtk.ApplicationWindow):
         # Hide the welcome note once there is at least one window on screen.
         self.welcome.set_visible(len(self.windows) == 0)
 
+    # ---------- feedback & sanity ----------
+    def show_toast(self, text):
+        try:
+            if self._toast is not None:
+                self.canvas_overlay.remove_overlay(self._toast)
+        except Exception:
+            pass
+        toast = Gtk.Label(label=text)
+        toast.add_css_class("toast")
+        toast.set_halign(Gtk.Align.CENTER)
+        toast.set_valign(Gtk.Align.START)
+        toast.set_margin_top(56)
+        toast.set_sensitive(False)
+        self.canvas_overlay.add_overlay(toast)
+        self._toast = toast
+        GLib.timeout_add_seconds(4, self._hide_toast)
+
+    def _hide_toast(self):
+        if getattr(self, "_toast", None) is not None:
+            try:
+                self.canvas_overlay.remove_overlay(self._toast)
+            except Exception:
+                pass
+            self._toast = None
+        return False
+
+    def _clamp_windows(self):
+        """Keep windows inside the canvas (small VM displays, resizes, eh)."""
+        canvas_w, canvas_h = self.get_canvas_size()
+        canvas_w, canvas_h = max(320, canvas_w), max(240, canvas_h)
+        for win in list(self.windows.values()):
+            w, h = win._size
+            new_w, new_h = min(w, canvas_w), min(h, canvas_h)
+            if (new_w, new_h) != (w, h):
+                win._size = (new_w, new_h)
+                win.set_size_request(new_w, new_h)
+            x, y = win.pos
+            nx, ny = min(x, max(0, canvas_w - 80)), min(y, max(0, canvas_h - 40))
+            if (nx, ny) != (x, y):
+                win.pos = (nx, ny)
+                self.reposition(win)
+        return True
+
     def refresh_dock(self):
         self.dock.refresh()
         # Rebuild Dev-Mode windows so locked/unlocked content matches state.
@@ -458,3 +526,4 @@ class DesktopWindow(Gtk.ApplicationWindow):
 
     def refresh_apps(self):
         self.refresh_badge()
+        self.topbar.rebuild_launcher()

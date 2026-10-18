@@ -65,26 +65,40 @@ jobs:
           rm -rf /tmp/canada-smoke && mkdir -p /tmp/canada-smoke/dist
           cp -r shell /tmp/canada-smoke/shell
           cd /tmp/canada-smoke
+          export GSK_RENDERER=cairo
           Xvfb :99 -screen 0 1280x800x24 &
           XVFB_PID=$!
           sleep 2
-          PYTHONPATH=/tmp/canada-smoke/shell CANADAOS_SMOKE=1 DISPLAY=:99 \
-            python3 -m canadaos.main > smoke-shell.log 2>&1 &
-          SHELL_PID=$!
+          # App matrix: launch every app alone, screenshot, so app-level
+          # crashes/appearance get caught without booting the ISO, eh.
+          for APP in paint notepad files settings hockey browser terminal syrup sadly; do
+            PYTHONPATH=/tmp/canada-smoke/shell CANADAOS_FORCE_DEV=1 \
+              CANADAOS_SMOKE_APP=$APP DISPLAY=:99 \
+              python3 -m canadaos.main > "smoke-$APP.log" 2>&1 &
+            APP_PID=$!
+            sleep 5
+            import -display :99 -window root "dist/app-$APP.png" || true
+            kill $APP_PID 2>/dev/null || true
+            sleep 1
+          done
+          # Maximize probe: windows must stay on-screen when maximized.
+          PYTHONPATH=/tmp/canada-smoke/shell CANADAOS_SMOKE=1 CANADAOS_MAX=1 \
+            DISPLAY=:99 python3 -m canadaos.main > smoke-max.log 2>&1 &
+          APP_PID=$!
           sleep 8
-          import -display :99 -window root dist/desktop-screenshot.png || true
-          kill $SHELL_PID $XVFB_PID 2>/dev/null || true
-          echo "---- smoke shell log ----"
-          cat smoke-shell.log || true
+          import -display :99 -window root dist/app-maximized.png || true
+          kill $APP_PID 2>/dev/null || true
+          kill $XVFB_PID 2>/dev/null || true
+          echo "---- smoke logs ----"
+          grep -l . smoke-*.log | xargs -I{} sh -c 'echo "== {} =="; cat {}' || true
           ls -la dist/
-          # upload-artifact resolves paths against the workspace, so copy it back
           mkdir -p "$GITHUB_WORKSPACE/dist"
-          cp dist/desktop-screenshot.png "$GITHUB_WORKSPACE/dist/desktop-screenshot.png"
+          cp dist/*.png "$GITHUB_WORKSPACE/dist/"
 
-      - name: Upload desktop screenshot
+      - name: Upload desktop screenshots
         uses: actions/upload-artifact@v4
         with:
           name: canadaos-desktop-screenshot
-          path: dist/desktop-screenshot.png
+          path: "dist/*.png"
           retention-days: 14
           if-no-files-found: warn

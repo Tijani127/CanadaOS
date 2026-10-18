@@ -190,6 +190,31 @@ textview.mono text {
 }
 .canada-content spinbutton,
 .canada-content combobox { color: #e8edf2; }
+.canada-content list,
+.canada-content listview { background-color: transparent; color: #e8edf2; }
+.canada-content row { background-color: transparent; color: #e8edf2; }
+.canada-content row:hover { background-color: #20262e; }
+.canada-content row:selected { background-color: #2b333e; }
+
+/* ---------- in-app dialogs (no WM to stack a real one, eh) ---------- */
+.modal-scrim {
+  background-color: rgba(4, 6, 9, 0.55);
+  border-radius: 0 0 12px 12px;
+}
+.modal-card {
+  background-image: none;
+  background-color: #1c222b;
+  border: 1px solid #2f3742;
+  border-radius: 12px;
+  padding: 16px;
+}
+.toast {
+  background-color: #d52b1e;
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-weight: 700;
+}
 .gutter {
   font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace;
   color: #58626d;

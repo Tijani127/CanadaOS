@@ -1,6 +1,6 @@
 """Shared helpers for CanadaOS apps — dialogs, status bars, async threads, eh."""
 import threading
-import json
+from pathlib import Path
 
 import gi
 gi.require_version("Gtk", "4.0")
@@ -80,51 +80,225 @@ def lock_content(win, app_info):
     return box
 
 
+def _overlay_for(win):
+    """Our app windows expose their Gtk.Overlay; system dialogs can't be used
+    here because our 'windows' are widgets, not top-level GtkWindows, and there
+    is no window manager to stack a dialog above the fullscreen shell, eh."""
+    return getattr(win, "content_overlay", None)
+
+
+def _dismiss(scrim):
+    try:
+        scrim.get_parent().remove_overlay(scrim)
+    except Exception:
+        pass
+
+
+def _panel(title, width=460):
+    card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+    card.add_css_class("modal-card")
+    card.set_halign(Gtk.Align.CENTER)
+    card.set_valign(Gtk.Align.CENTER)
+    card.set_size_request(width, -1)
+    card.append(row_label(title, "app-title"))
+    return card
+
+
 def info_dialog(parent, title, text):
-    dlg = Gtk.MessageDialog(transient_for=parent, modal=True,
-                            message_type=Gtk.MessageType.INFO,
-                            buttons=Gtk.ButtonsType.OK, text=text)
-    dlg.set_title(title)
-    dlg.connect("response", lambda d, *a: d.destroy())
-    dlg.show()
+    ov = _overlay_for(parent)
+    if ov is None:
+        print("[canadaos][{}] {}".format(title, text))
+        return
+    scrim = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+    scrim.add_css_class("modal-scrim")
+    card = _panel(title)
+    body = row_label(text, "muted-label")
+    body.set_wrap(True)
+    card.append(body)
+    card.append(button("OK, eh", lambda *_: _dismiss(scrim), "app-tile"))
+    scrim.append(card)
+    ov.add_overlay(scrim)
 
 
 def confirm_dialog(parent, title, text, on_yes):
-    dlg = Gtk.MessageDialog(transient_for=parent, modal=True,
-                            message_type=Gtk.MessageType.QUESTION,
-                            text=text)
-    dlg.set_title(title)
-    dlg.add_button("Cancel", Gtk.ResponseType.CANCEL)
-    dlg.add_button("Sorry — yes", Gtk.ResponseType.OK)
-    dlg.connect("response", lambda d, resp: (on_yes() if resp == Gtk.ResponseType.OK else None,
-                                             d.destroy()))
-    dlg.show()
+    ov = _overlay_for(parent)
+    if ov is None:
+        print("[canadaos][{}] {}".format(title, text))
+        return
+    scrim = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+    scrim.add_css_class("modal-scrim")
+    card = _panel(title)
+    body = row_label(text, "muted-label")
+    body.set_wrap(True)
+    card.append(body)
+    row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    row.set_halign(Gtk.Align.CENTER)
+    row.append(button("Cancel", lambda *_: _dismiss(scrim), "app-tile"))
+    row.append(button("Sorry — yes",
+                      lambda *_: (_dismiss(scrim), on_yes()), "app-tile"))
+    card.append(row)
+    scrim.append(card)
+    ov.add_overlay(scrim)
+
+
+def _file_browser_card():
+    """Shared in-app directory browser for the file dialogs.
+    Returns {crumbs, scroller, refresh, selected, current, on_file}."""
+    current = {"dir": Path.home()}
+    selected = {"path": None}
+
+    crumbs = row_label("", "muted-label")
+    crumbs.set_ellipsize(3)
+    lb = Gtk.ListBox()
+    scroller = Gtk.ScrolledWindow()
+    scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+    scroller.set_vexpand(True)
+    scroller.set_child(lb)
+
+    def refresh():
+        while True:
+            child = lb.get_first_child()
+            if child is None:
+                break
+            lb.remove(child)
+        crumbs.set_text(str(current["dir"]))
+        selected["path"] = None
+        try:
+            entries = sorted(current["dir"].iterdir(),
+                             key=lambda p: (p.is_file(), p.name.lower()))
+        except (PermissionError, OSError):
+            entries = []
+        for path in entries:
+            glyph = "📁" if path.is_dir() else "📄"
+            row = Gtk.ListBoxRow()
+            box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            box.set_margin_top(2)
+            box.set_margin_bottom(2)
+            box.set_margin_start(8)
+            box.append(Gtk.Label(label="{}  {}".format(glyph, path.name)))
+            row.set_child(box)
+            row._path = path
+            lb.append(row)
+
+    def on_row_selected(_lb, row):
+        selected["path"] = getattr(row, "_path", None) if row is not None else None
+
+    def on_row_activated(_lb, row):
+        p = getattr(row, "_path", None) if row is not None else None
+        if p is None:
+            return
+        if p.is_dir():
+            current["dir"] = p
+            refresh()
+        elif "on_file" in state and state["on_file"]:
+            state["on_file"](p)
+
+    def up(_btn=None):
+        current["dir"] = current["dir"].parent
+        refresh()
+
+    state = {"crumbs": crumbs, "scroller": scroller, "lb": lb,
+             "refresh": refresh, "up": up, "current": current,
+             "selected": selected, "on_file": None}
+    lb.connect("row_selected", on_row_selected)
+    lb.connect("row_activated", on_row_activated)
+    return state
 
 
 def choose_open_file(parent, on_done, mime=None):
-    dlg = Gtk.FileChooserNative.new("Open file", parent, Gtk.FileChooserAction.OPEN,
-                                    "Open", "Cancel")
-    if mime:
-        filt = Gtk.FileFilter()
-        filt.set_name("Supported")
-        for m in (mime if isinstance(mime, (list, tuple)) else [mime]):
-            filt.add_mime_type(m)
-        dlg.add_filter(filt)
-    dlg.show(lambda d, resp: _yield_file(d, resp, "open", on_done))
+    """In-app file picker (system file chooser can't be parented from a
+    non-window widget). on_done receives a path string, or None if cancelled."""
+    ov = _overlay_for(parent)
+    if ov is None:
+        print("[canadaos] open dialog unavailable")
+        return
+
+    def done(path):
+        _dismiss(scrim)
+        on_done(str(path) if path else None)
+
+    card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+    card.add_css_class("modal-card")
+    card.set_halign(Gtk.Align.CENTER)
+    card.set_valign(Gtk.Align.CENTER)
+    card.set_size_request(520, 480)
+    card.append(row_label("Open a file, eh", "app-title"))
+
+    fb = _file_browser_card()
+    fb["on_file"] = done
+    card.append(fb["crumbs"])
+    card.append(fb["scroller"])
+    fb["refresh"]()
+
+    actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    actions.append(button("⬆ Up", fb["up"], "app-tile"))
+    actions.append(button(
+        "Open 📂",
+        lambda *_: done(fb["selected"]["path"]
+                        if fb["selected"]["path"] is not None and
+                        fb["selected"]["path"].is_file() else None),
+        "app-tile"))
+    spacer = Gtk.Box()
+    spacer.set_hexpand(True)
+    actions.append(spacer)
+    actions.append(button("Cancel", lambda *_: done(None)))
+    card.append(actions)
+
+    scrim = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+    scrim.add_css_class("modal-scrim")
+    scrim.append(card)
+    ov.add_overlay(scrim)
 
 
 def choose_save_file(parent, on_done, suggested=None):
-    dlg = Gtk.FileChooserNative.new("Save file", parent, Gtk.FileChooserAction.SAVE,
-                                    "Save", "Cancel")
-    if suggested:
-        dlg.set_current_name(suggested)
-    dlg.set_do_overwrite_confirmation(True)
-    dlg.show(lambda d, resp: _yield_file(d, resp, "save", on_done))
+    """In-app save picker. on_done receives a path string, or None."""
+    ov = _overlay_for(parent)
+    if ov is None:
+        print("[canadaos] save dialog unavailable")
+        return
 
+    def done(path):
+        _dismiss(scrim)
+        on_done(str(path) if path else None)
 
-def _yield_file(dlg, resp, _kind, on_done):
-    f = dlg.get_file() if resp == Gtk.ResponseType.ACCEPT else None
-    on_done(f.get_path() if f else None)
+    card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+    card.add_css_class("modal-card")
+    card.set_halign(Gtk.Align.CENTER)
+    card.set_valign(Gtk.Align.CENTER)
+    card.set_size_request(520, 480)
+    card.append(row_label("Save as…", "app-title"))
+
+    name_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    name_entry = Gtk.Entry()
+    name_entry.set_hexpand(True)
+    name_entry.set_text(suggested or "")
+    name_entry.set_placeholder_text("File name, eh…")
+    name_row.append(name_entry)
+    card.append(name_row)
+
+    fb = _file_browser_card()
+    fb["on_file"] = lambda p: name_entry.set_text(p.name)  # pick a name hint
+    card.append(fb["crumbs"])
+    card.append(fb["scroller"])
+    fb["refresh"]()
+
+    actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+    actions.append(button("⬆ Up", fb["up"], "app-tile"))
+    actions.append(button(
+        "Save 💾",
+        lambda *_: done(str(fb["current"]["dir"] /
+                        (name_entry.get_text().strip() or "untitled"))),
+        "app-tile"))
+    spacer = Gtk.Box()
+    spacer.set_hexpand(True)
+    actions.append(spacer)
+    actions.append(button("Cancel", lambda *_: done(None)))
+    card.append(actions)
+
+    scrim = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+    scrim.add_css_class("modal-scrim")
+    scrim.append(card)
+    ov.add_overlay(scrim)
 
 
 def run_async(fn, on_done):

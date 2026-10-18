@@ -1,5 +1,6 @@
 """CanadaOS user configuration. Stored in ~/.config/canadaos/config.json."""
 import json
+import os
 from pathlib import Path
 
 CONFIG_DIR = Path.home() / ".config" / "canadaos"
@@ -44,6 +45,10 @@ def set_key(key, value):
 
 
 def is_dev_mode() -> bool:
+    # CI hook: the app-matrix smoke test flips this so locked apps' real
+    # content can be screenshotted, eh.
+    if os.environ.get("CANADAOS_FORCE_DEV") in ("1", "true"):
+        return True
     return bool(get("dev_mode", False))
 
 

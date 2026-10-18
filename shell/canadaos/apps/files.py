@@ -90,7 +90,7 @@ class Files(Gtk.Box):
             name = Gtk.Label(label=(glyph + "  " + path.name))
             name.set_hexpand(True)
             name.set_halign(Gtk.Align.START)
-            kind = Gtk.Label(label=("dir" if path.is_dir() else "file"), css="muted-label")
+            kind = row_label("dir" if path.is_dir() else "file", "muted-label")
             box.append(name)
             box.append(kind)
             row.set_child(box)

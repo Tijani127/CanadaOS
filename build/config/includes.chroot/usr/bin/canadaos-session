@@ -1,4 +1,7 @@
 #!/bin/sh
-# CanadaOS X session: no window manager needed — the shell is a fullscreen
+# CanadaOS X session: no window manager needed - the shell is a fullscreen
 # GTK app that draws its own windows, eh.
+# Cairo renderer: VMs have no real GPU, and the GL renderer falls back to
+# slow software paths; cairo is steadier and snappier inside a VM.
+export GSK_RENDERER=cairo
 exec /usr/bin/canadaos-shell

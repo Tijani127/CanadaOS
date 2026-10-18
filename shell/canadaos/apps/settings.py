@@ -105,12 +105,15 @@ class Settings(Gtk.Box):
         if guess in accepted:
             config.set_key("dev_mode", True)
             self.state_label.set_text("Dev Mode is ON. Sorry Terminal + Maple Syrup editor unlocked, eh!")
+            self.entry.set_text("")
+            # refresh + feedback FIRST so a dialog problem can't swallow the
+            # whole unlock (that's how the dock kept showing locks before).
+            self.win.desktop.refresh_dock()
+            self.win.desktop.refresh_apps()
+            self.win.desktop.show_toast("Dev Mode unlocked, eh 🍁")
             base.info_dialog(self.win, "Welcome, eh!",
                              "Dev Mode unlocked! The Sorry Terminal and the Maple Syrup editor\n"
                              "are now yours to abuse politely.")
-            self.entry.set_text("")
-            self.win.desktop.refresh_dock()
-            self.win.desktop.refresh_apps()
         else:
             base.info_dialog(self.win, "Not quite, eh.",
                              "Wrong password. Sorry.\n(Hint below, for polite people.)")
@@ -121,3 +124,4 @@ class Settings(Gtk.Box):
             "Dev Mode is OFF. Unlock for: 💻 Sorry Terminal, 🍁 Maple Syrup editor.")
         self.win.desktop.refresh_dock()
         self.win.desktop.refresh_apps()
+        self.win.desktop.show_toast("Dev Mode closed, eh 🍁")
