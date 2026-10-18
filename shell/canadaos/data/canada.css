@@ -21,8 +21,14 @@
                     linear-gradient(170deg, #0f0e0a 0%, #181713 60%, #0d0d0a 100%);
 }
 
-.canada-leaf { font-size: 460px; opacity: 0.10; margin-top: 40px; }
+.canada-leaf { font-size: 260px; opacity: 0.10; margin-top: 40px; }
 .brand { color: #6c7680; font-size: 12px; opacity: 0.75; }
+.welcome-note {
+  color: #7f8b96;
+  font-size: 15px;
+  line-height: 24px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
 
 /* ---------- top bar ---------- */
 .canada-topbar {

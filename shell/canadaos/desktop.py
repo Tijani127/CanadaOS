@@ -1,16 +1,27 @@
 """CanadaOS desktop shell: top bar, dock, internal windows drawn on a canvas."""
+import os
 import time
 
 import gi
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk, GLib
+from gi.repository import Gtk, GLib, Gdk
 
 from . import config
 from .apps import APPS, get_app, factory_for
 
 
 class CanadaWindow(Gtk.Box):
-    """A floating app window drawn as a widget on the desktop canvas."""
+    """A floating app window drawn as a widget on the desktop canvas.
+
+    Design notes (learned the hard way, eh):
+    - The content MUST vexpand, or apps collapse to their minimum size and
+      look "empty" inside a big window frame.
+    - Never re-parent the window widget during click/drag gestures: removing
+      a widget from the canvas resets every gesture sequence on it, which is
+      how we used to break the close button and make dragging glitch out.
+      Re-parenting (bring-to-front) is only allowed as an explicit action
+      (dock click, un-minimize), never inside a gesture handler.
+    """
 
     def __init__(self, desktop, app_info):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -41,6 +52,8 @@ class CanadaWindow(Gtk.Box):
 
         content_overlay = Gtk.Overlay()
         content_overlay.set_child(content_box)
+        content_overlay.set_vexpand(True)   # THE fix for "apps look empty"
+        content_overlay.set_hexpand(True)
 
         grip = Gtk.Box()
         grip.set_size_request(18, 18)
@@ -61,24 +74,19 @@ class CanadaWindow(Gtk.Box):
         self.append(header)
         self.append(content_overlay)
 
-        # moving
+        # Moving (header drag). No re-parenting inside the gesture.
         drag = Gtk.GestureDrag()
         drag.connect("drag-begin", self._drag_begin)
         drag.connect("drag-update", self._drag_update)
         drag.connect("drag-end", self._drag_end)
         header.add_controller(drag)
 
-        # raising on click
-        click = Gtk.GestureClick()
-        click.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        click.connect("pressed", lambda g, n, x, y: desktop.raise_window(self))
-        self.add_controller(click)
-
         self._content = content
         self._move_start = None
         self._resize_start = None
         self._was_max = False
         self._prev_pos = None
+        self._prev_size = None
 
     # ---------- window chrome ----------
     def _minimize(self, btn):
@@ -91,9 +99,9 @@ class CanadaWindow(Gtk.Box):
         if self._was_max:
             self.pos = self._prev_pos or (60, 60)
             self.desktop.reposition(self)
-            self.set_size_request(self.app_info.width, self.app_info.height)
-            self._was_max = False
+            self.set_size_request(self._prev_size)
             self.app_info.width, self.app_info.height = self._prev_size
+            self._was_max = False
         else:
             self._prev_size = (self.app_info.width, self.app_info.height)
             self._prev_pos = self.pos
@@ -103,20 +111,17 @@ class CanadaWindow(Gtk.Box):
             self.set_size_request(w, h)
             self.app_info.width, self.app_info.height = w, h
             self._was_max = True
-        self.desktop.raise_window(self)
+        self.set_size_request(max(self.app_info.width, 360), max(self.app_info.height, 240))
 
     # ---------- moving ----------
     def _drag_begin(self, gesture, start_x, start_y):
         if self._was_max:
             return
         self._move_start = self.pos
-        self.desktop.raise_window(self)
 
     def _drag_update(self, gesture, offset_x, offset_y):
         if self._was_max or not self._move_start:
             return
-        # GestureDrag offsets are relative to drag start; we track canvas coords
-        # by keeping a delta of the last applied offset.
         last = getattr(self, "_last_delta", (0, 0))
         dx, dy = offset_x - last[0], offset_y - last[1]
         self._last_delta = (offset_x, offset_y)
@@ -132,7 +137,6 @@ class CanadaWindow(Gtk.Box):
     # ---------- resizing ----------
     def _resize_begin(self, gesture, start_x, start_y):
         self._resize_start = (self.app_info.width, self.app_info.height)
-        self.desktop.raise_window(self)
 
     def _resize_update(self, gesture, offset_x, offset_y):
         if not self._resize_start or self._was_max:
@@ -238,7 +242,6 @@ class Dock(Gtk.Box):
             def on_btn(btn, aid=info.app_id):
                 self.desktop.launch(aid)
             btn.connect("clicked", on_btn)
-            btn.desktop = self.desktop
             self.append(btn)
         filler = Gtk.Box()
         filler.set_hexpand(True)
@@ -255,7 +258,6 @@ class Dock(Gtk.Box):
         for win in list(self.desktop.minimized):
             pill = Gtk.Button(label=win.app_info.emoji + " " + win.app_info.title)
             pill.add_css_class("task-pill")
-            pill.desktop = self.desktop
             pill.connect("clicked", lambda b, w=win: self.desktop.unminimize_window(w))
             self.tasks_box.append(pill)
 
@@ -269,7 +271,10 @@ class DesktopWindow(Gtk.ApplicationWindow):
         self._cascade = 0
 
         self.set_default_size(1280, 800)
-        self.fullscreen()
+        try:
+            self.fullscreen()
+        except Exception:
+            pass
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         root.add_css_class("canada-root")
@@ -290,6 +295,18 @@ class DesktopWindow(Gtk.ApplicationWindow):
         brand.set_sensitive(False)
         self.canvas.put(brand, 24, 24)
 
+        welcome = Gtk.Label(label=(
+            "Welcome to CanadaOS 🍁\n\n"
+            "The Eh-Menu (top-left) opens apps. Nothing opens by itself, we promise, eh.\n"
+            "Settings ⚙ has the Dev Mode unlock. Hockey Arena 🏒 is live.\n"
+            "All windows can be dragged by their title bars."))
+        welcome.add_css_class("welcome-note")
+        welcome.set_sensitive(False)
+        welcome.set_justify(Gtk.Justification.CENTER)
+        self.canvas.put(welcome, 0, 0)
+        self.welcome = welcome
+        self.canvas.connect("resize", self._center_welcome)
+
         self.topbar = TopBar(self)
         self.dock = Dock(self)
 
@@ -298,14 +315,34 @@ class DesktopWindow(Gtk.ApplicationWindow):
         root.append(self.dock)
         self.set_child(root)
 
-        self.launch("browser")
-        self.launch("settings")
+        # Headless screenshot mode for CI: open a couple of apps so the
+        # smoke-test screenshot actually shows app content.
+        if os.environ.get("CANADAOS_SMOKE"):
+            self.launch("settings")
+            self.launch("notepad")
 
+        self._center_welcome()
+
+    # ---------- canvas helpers ----------
     def get_canvas_size(self):
         w, h = self.canvas.get_allocated_width(), self.canvas.get_allocated_height()
         if w <= 1:
             w, h = self.get_allocated_width(), max(400, self.get_allocated_height() - 90)
         return w, h
+
+    def _center_welcome(self, *a):
+        fig_w, fig_h = self.get_canvas_size()
+        try:
+            alloc = self.welcome.get_allocated_width() or 1
+            alloc_h = self.welcome.get_allocated_height() or 1
+        except Exception:
+            return
+        x = max(0, fig_w // 2 - alloc // 2)
+        y = max(50, fig_h // 3 - alloc_h // 2)
+        try:
+            self.canvas.move(self.welcome, x, y)
+        except Exception:
+            pass
 
     def set_wallpaper(self, value):
         for name in ("wall-midnight-yukon", "wall-forest-night", "wall-prairie-night"):
@@ -332,18 +369,32 @@ class DesktopWindow(Gtk.ApplicationWindow):
             win = self.windows[app_id]
             self.unminimize_window(win)
             self._deliver_opts(win, opts)
+            self.raise_window(win)
             return win
         win = CanadaWindow(self, info)
         self.windows[app_id] = win
         pos = self._cascade_pos()
         win.pos = pos
         self.canvas.put(win, pos[0], pos[1])
+        self.refresh_welcome()
         self.raise_window(win)
         self._deliver_opts(win, opts)
         return win
 
+    def raise_window(self, win):
+        """Explicit bring-to-front (dock click / unminimize). Never call from a gesture."""
+        pos = win.pos
+        try:
+            self.canvas.remove(win)
+            self.canvas.put(win, pos[0], pos[1])
+        except Exception:
+            pass
+        try:
+            win._content.grab_focus()
+        except Exception:
+            pass
+
     def _deliver_opts(self, win, opts):
-        """When reopening an already-open editor, point it at a file, eh."""
         if not opts:
             return
         loader = getattr(win._content, "load_path", None)
@@ -353,22 +404,6 @@ class DesktopWindow(Gtk.ApplicationWindow):
                 loader(path)
             except Exception:
                 pass
-
-    def raise_window(self, win):
-        pos = win.pos
-        try:
-            self.canvas.remove(win)
-            self.canvas.put(win, pos[0], pos[1])
-        except Exception:
-            pass
-        for other in list(self.windows.values()):
-            if other is not win and other.has_css_class("focused"):
-                other.remove_css_class("focused")
-        win.add_css_class("focused")
-        try:
-            win._content.grab_focus()
-        except Exception:
-            pass
 
     def minimize_window(self, win):
         win.set_visible(False)
@@ -384,7 +419,7 @@ class DesktopWindow(Gtk.ApplicationWindow):
         self.raise_window(win)
 
     def close_window(self, win):
-        app_id = win.app_info.app_id
+        app_id = getattr(win.app_info, "app_id", None)
         self.windows.pop(app_id, None)
         if win in self.minimized:
             self.minimized.remove(win)
@@ -393,13 +428,18 @@ class DesktopWindow(Gtk.ApplicationWindow):
         except Exception:
             pass
         self.dock.sync_tasks()
+        self.refresh_welcome()
+
+    def refresh_welcome(self):
+        # Hide the welcome note once there is at least one window on screen.
+        self.welcome.set_visible(len(self.windows) == 0)
 
     def refresh_dock(self):
         self.dock.refresh()
-        # Rebuild Dev-Mode windows so the locked/unlocked content matches.
+        # Rebuild Dev-Mode windows so locked/unlocked content matches state.
         for app_id in list(self.windows.keys()):
             win = self.windows[app_id]
-            if win.app_info.dev_only or app_id == "syrup":
+            if win.app_info.dev_only:
                 self.close_window(win)
                 self.launch(app_id)
         self.refresh_badge()
