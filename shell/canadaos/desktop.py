@@ -6,6 +6,13 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, GLib, Gdk
 
+# Registering cairo foreign structs early means every draw callback in the
+# process (rinks, paint canvases, swatches…) gets a real cairo.Context, eh.
+try:
+    import cairo  # noqa: F401
+except ImportError:  # pragma: no cover — pycairo should always be present
+    pass
+
 from . import config
 from .apps import APPS, get_app, factory_for
 
@@ -111,6 +118,14 @@ class CanadaWindow(Gtk.Box):
 
     def _maximize(self, btn):
         canvas_w, canvas_h = self.desktop.get_canvas_size()
+        if canvas_w <= 1:
+            # Canvas not allocated yet (early maximize, e.g. CI smoke):
+            # retry shortly instead of sizing to a bogus fallback, eh.
+            tries = getattr(self, "_max_tries", 0) + 1
+            self._max_tries = tries
+            if tries < 50:
+                GLib.timeout_add(200, lambda: (self._maximize(None), False)[1])
+            return
         canvas_w, canvas_h = max(320, canvas_w), max(240, canvas_h)
         if self._was_max:
             self.set_size_request(*self._prev_size)

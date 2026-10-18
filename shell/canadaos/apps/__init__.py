@@ -56,6 +56,9 @@ APPS = [
 
 
 def get_app(app_id):
+    # Friendly alias: "Sadly Terminal" and "Sorry Terminal" are the same app.
+    if app_id == "sadly":
+        app_id = "terminal"
     for info in APPS:
         if info.app_id == app_id:
             return info

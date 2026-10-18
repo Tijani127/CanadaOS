@@ -6,6 +6,13 @@ import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, GLib
 
+# cairo must be imported once in the process before draw callbacks run,
+# or PyGObject refuses to hand callbacks a cairo.Context.
+try:
+    import cairo  # noqa: F401
+except ImportError:  # pragma: no cover
+    pass
+
 from . import base
 from .base import app_root, button, row_label, run_async
 
