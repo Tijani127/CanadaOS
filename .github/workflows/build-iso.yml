@@ -59,16 +59,21 @@ jobs:
 
       - name: Desktop smoke test — run the shell under Xvfb and screenshot it
         run: |
-          apt-get install -y --no-install-recommends xvfb imagemagick
-          rm -rf /tmp/canada-smoke && mkdir -p /tmp/canada-smoke && cp -r shell /tmp/canada-smoke/shell
+          apt-get install -y --no-install-recommends xvfb imagemagick \
+            python3 python3-gi python3-cairo gir1.2-gtk-4.0 \
+            fonts-noto-color-emoji fonts-dejavu adwaita-icon-theme
+          rm -rf /tmp/canada-smoke && mkdir -p /tmp/canada-smoke/dist
+          cp -r shell /tmp/canada-smoke/shell
           cd /tmp/canada-smoke
           Xvfb :99 -screen 0 1280x800x24 &
           XVFB_PID=$!
           sleep 2
           PYTHONPATH=/tmp/canada-smoke/shell CANADAOS_SMOKE=1 DISPLAY=:99 \
-            timeout 14 python3 -m canadaos.main > smoke-shell.log 2>&1 || true
+            python3 -m canadaos.main > smoke-shell.log 2>&1 &
+          SHELL_PID=$!
+          sleep 8
           import -display :99 -window root dist/desktop-screenshot.png || true
-          kill $XVFB_PID 2>/dev/null || true
+          kill $SHELL_PID $XVFB_PID 2>/dev/null || true
           echo "---- smoke shell log ----"
           cat smoke-shell.log || true
           ls -la dist/
