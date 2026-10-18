@@ -149,7 +149,23 @@ textview.mono text {
   caret-color: #e8edf2;
 }
 .canada-content textview text selection { background-color: #8b2f2f; color: #ffffff; }
+/* NOTE: the stock theme paints `background-image` (gradients) over any
+   background-color we set, so every knob below must clear background-image
+   or the light-theme look wins, eh. */
+.canada-window button {
+  background-image: none;
+  background-color: #232a33;
+  color: #e8edf2;
+  border-radius: 8px;
+  border: 1px solid #2f3742;
+  padding: 6px 10px;
+}
+.canada-window button:hover { background-image: none; background-color: #2b333e; }
+.canada-window button:active,
+.canada-window button:checked { background-image: none; background-color: #1e242c; }
+.canada-window button.close-btn:hover { background-image: none; background: #c33; }
 .canada-content entry {
+  background-image: none;
   background-color: #10161c;
   color: #e8edf2;
   border-radius: 6px;
@@ -168,6 +184,7 @@ textview.mono text {
 .canada-content button:active,
 .canada-content button:checked { background-color: #1e242c; }
 .canada-content checkbutton check {
+  background-image: none;
   background-color: #232a33;
   border-color: #2f3742;
 }
