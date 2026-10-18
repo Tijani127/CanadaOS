@@ -137,6 +137,42 @@ textview.mono text {
   font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace;
   font-size: 13px;
 }
+
+/* ---------- forced dark widget palette ----------
+   StyleManager FORCE_DARK isn't honored in every session, so we style the
+   widget nodes directly. Deterministic dark, no theme permission needed. */
+.canada-content scrolledwindow { background-color: transparent; }
+.canada-content textview { background-color: #10161c; }
+.canada-content textview text {
+  background-color: #10161c;
+  color: #e8edf2;
+  caret-color: #e8edf2;
+}
+.canada-content textview text selection { background-color: #8b2f2f; color: #ffffff; }
+.canada-content entry {
+  background-color: #10161c;
+  color: #e8edf2;
+  border-radius: 6px;
+  border: 1px solid #2f3742;
+  padding: 6px 8px;
+}
+.canada-content entry selection { background-color: #8b2f2f; color: #ffffff; }
+.canada-content button {
+  background-color: #232a33;
+  color: #e8edf2;
+  border-radius: 8px;
+  border: 1px solid #2f3742;
+  padding: 6px 10px;
+}
+.canada-content button:hover { background-color: #2b333e; }
+.canada-content button:active,
+.canada-content button:checked { background-color: #1e242c; }
+.canada-content checkbutton check {
+  background-color: #232a33;
+  border-color: #2f3742;
+}
+.canada-content spinbutton,
+.canada-content combobox { color: #e8edf2; }
 .gutter {
   font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace;
   color: #58626d;

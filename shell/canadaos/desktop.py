@@ -367,7 +367,7 @@ class DesktopWindow(Gtk.ApplicationWindow):
 
     def _cascade_pos(self):
         self._cascade += 1
-        off = (self._cascade * 34) % 260
+        off = (self._cascade * 70) % 350
         return 80 + off, 60 + off
 
     def launch(self, app_id, opts=None):
