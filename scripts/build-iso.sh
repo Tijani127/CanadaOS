@@ -48,6 +48,17 @@ LB_MIRROR_BINARY="http://deb.debian.org/debian"
 EOF
 
 echo "🏗️   lb build (this takes a while — have a double-double)…"
+
+# Ubuntu runners ship /etc/live/build.conf pointing at archive.ubuntu.com,
+# which cannot serve Debian suites (the exact failure: asking ubuntu for
+# bookworm). Rewrite those mirrors to Debian — bullets over charm.
+if [ -f /etc/live/build.conf ]; then
+    echo "🔧  /etc/live/build.conf before patching:"
+    cat /etc/live/build.conf || true
+    sed -i 's|archive.ubuntu.com/ubuntu|deb.debian.org/debian|g' /etc/live/build.conf
+    echo "🔧  /etc/live/build.conf after patching:"
+    cat /etc/live/build.conf || true
+fi
 lb build noauto "${@}"
 
 echo
