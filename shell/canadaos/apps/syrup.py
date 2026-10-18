@@ -7,7 +7,6 @@ from gi.repository import Gtk, GLib
 
 from . import base
 from .base import app_root, button, row_label
-from .syrup_grammar import SAMPLE  # kept small for import clarity later
 
 KEYWORDS = [
     "tap", "pour", "harvest", "boil", "sorry", "thanks", "please", "eh",
@@ -24,6 +23,18 @@ TAG_DEFS = [
     ("builtin", "#c792ea", None),
     ("bracket", "#5db6d7", None),
 ]
+
+SAMPLE = """# First .maple program. Welcome to the sugar bush, eh.
+import syrup
+
+def make_syrup(size, grade):
+    if grade < "a":
+        sorry  # not our finest, eh
+        return size / 2
+    boil("sap", temp=104)
+    tap("maple trees")
+    return pour(grade)
+"""
 
 PATTERN = re.compile(
     r"(#.*$|\"[^\"]*\"|'[^']*'|\b(?:{})\b|\b\d+(?:\.\d+)?\b|[{}\[\]()<>])".format(
