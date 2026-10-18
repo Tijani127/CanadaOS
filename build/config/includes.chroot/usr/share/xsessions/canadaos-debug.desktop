@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Encoding=UTF-8
+Name=CanadaOS (debug — openbox)
+Comment=Minimal WM + terminal for troubleshooting the shell.
+Exec=/usr/bin/canadaos-debug-session
+TryExec=/usr/bin/openbox
+DesktopNames=CANADA-DEBUG
+Keywords=canadaos
