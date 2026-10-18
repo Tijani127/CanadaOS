@@ -29,7 +29,6 @@ lb config noauto \
   --iso-volume "CanadaOS-1.0-amd64" \
   --iso-application "CanadaOS 1.0 'Double-Double'" \
   --iso-publisher "canadaos;ca" \
-  --image-name "canadaos" \
   --debian-installer none \
   "${@}"
 
@@ -37,5 +36,5 @@ echo "🏗️   lb build (this takes a while — have a double-double)…"
 lb build noauto "${@}"
 
 echo
-echo "Done, eh. ISO at: build/canadaos-amd64.iso"
-echo "Test it:  qemu-system-x86_64 -m 4096 -cdrom build/canadaos-amd64.iso -enable-kvm"
+echo "Done, eh. ISO at: build/live-image-amd64.iso"
+echo "Test it:  qemu-system-x86_64 -m 4096 -cdrom build/live-image-amd64.iso -enable-kvm"
