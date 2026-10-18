@@ -68,8 +68,25 @@ Needs a Linux environment. Easiest: WSL2 + Debian on Windows.
 sudo apt update && sudo apt install -y live-build debootstrap qemu-system-x86
 ./scripts/build-iso.sh                       # from the repo root
 # grind. ~30-60 min depending on network/mirrors.
+# Grind. ~30-60 min depending on network/mirrors, eh.
+
+# On Linux (KVM available) — fast:
 qemu-system-x86_64 -m 4096 -cdrom build/live-image-amd64.iso -enable-kvm
 ```
+
+> **Testing on Windows: use VirtualBox, not plain QEMU.** QEMU on Windows has
+> no KVM, so it runs in pure software emulation — CanadaOS *works* there but
+> feels like paddling a canoe through molasses, eh 🍁. VirtualBox uses your
+> CPU's VT-x, so it's dramatically faster: create a VM with **2+ CPUs, 4096 MB
+> RAM**, attach the ISO, boot. (QEMU with WHPX acceleration also works:
+> `qemu-system-x86_64 -m 4096 -accel whpx -cdrom ...` if Hyper-V is enabled.)
+
+### Don't want to build it yourself?
+
+GitHub Actions builds the ISO on every push — grab the latest green run's
+artifacts: **`canadaos-1.0-amd64-iso`** (the image) and
+**`canadaos-desktop-screenshot`** (a headless screenshot of the actual running
+desktop, so quality regressions get caught before you even boot it).
 
 Or open the ISO in VirtualBox / any PC USB. LightDM logs in as `user`
 automatically (password `live` if the login screen ever asks) and boots
