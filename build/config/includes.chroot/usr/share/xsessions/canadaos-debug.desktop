@@ -1,5 +1,5 @@
 [Desktop Entry]
-Type=Application
+Type=XSession
 Encoding=UTF-8
 Name=CanadaOS (debug — openbox)
 Comment=Minimal WM + terminal for troubleshooting the shell.
