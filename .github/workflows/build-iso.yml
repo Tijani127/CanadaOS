@@ -16,7 +16,7 @@ jobs:
       - name: Install live-build tooling
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends live-build debootstrap
+          sudo apt-get install -y --no-install-recommends live-build debootstrap debian-archive-keyring
 
       - name: Build the CanadaOS ISO (live-build, Debian bookworm)
         run: sudo bash ./scripts/build-iso.sh
