@@ -20,3 +20,5 @@ ca-certificates
 desktop-file-utils
 fonts-dejavu
 fonts-noto-color-emoji
+openbox
+xterm
