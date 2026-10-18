@@ -15,7 +15,7 @@ find "$INC/usr/lib/canadaos" -name '__pycache__' -type d -exec rm -rf {} + 2>/de
 
 echo "🔧  Marking hook + include files executable…"
 chmod +x build/config/hooks/live/*.chroot 2>/dev/null || true
-chmod +x "$INC/usr/bin/canadaos-shell" "$INC/usr/bin/canadaos-session"
+chmod +x "$INC/usr/bin/canadaos-shell" "$INC/usr/bin/canadaos-session" "$INC/usr/bin/canadaos-debug-session"
 chmod +x "$INC/usr/local/bin/"* 2>/dev/null || true
 chmod +x scripts/*.sh
 
