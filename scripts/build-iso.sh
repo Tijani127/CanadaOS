@@ -32,6 +32,21 @@ lb config noauto \
   --debian-installer none \
   "${@}"
 
+# The host (Ubuntu CI runner) would otherwise try to bootstrap bookworm from
+# Ubuntu mirrors. Force the parent mirrors to Debian, always, eh.
+cat >> config/common <<'EOF'
+LB_PARENT_DISTRIBUTION="bookworm"
+LB_PARENT_ARCHIVE_AREAS="main contrib non-free non-free-firmware"
+LB_PARENT_MIRROR_BOOTSTRAP="http://deb.debian.org/debian"
+LB_PARENT_MIRROR_CHROOT="http://deb.debian.org/debian"
+LB_PARENT_MIRROR_CHROOT_SECURITY="http://security.debian.org/"
+LB_PARENT_MIRROR_BINARY="http://deb.debian.org/debian"
+LB_PARENT_MIRROR_BINARY_SECURITY="http://security.debian.org/"
+LB_MIRROR_BOOTSTRAP="http://deb.debian.org/debian"
+LB_MIRROR_CHROOT="http://deb.debian.org/debian"
+LB_MIRROR_BINARY="http://deb.debian.org/debian"
+EOF
+
 echo "🏗️   lb build (this takes a while — have a double-double)…"
 lb build noauto "${@}"
 
