@@ -52,7 +52,7 @@ class ColorSwatch(Gtk.Box):
 
 
 class Paint(Gtk.Box):
-    def __init__(self, win):
+    def __init__(self, win, opts=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         base_utils = base
         self.add_css_class("app-root")
