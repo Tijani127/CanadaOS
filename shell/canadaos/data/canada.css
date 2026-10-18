@@ -1,0 +1,152 @@
+/* CanadaOS theme — dark, maple, polite. Single source of styling truth. */
+
+* { outline-width: 0; }
+
+.canada-root { background: #0c0f13; }
+
+/* ---------- desktop canvas / wallpapers ---------- */
+.canada-desktop {
+  background-color: #10141a;
+}
+.wall-midnight-yukon {
+  background-image: radial-gradient(circle at 78% 18%, rgba(213,43,30,0.18), transparent 55%),
+                    linear-gradient(160deg, #0d1117 0%, #131a22 60%, #0c1013 100%);
+}
+.wall-forest-night {
+  background-image: radial-gradient(circle at 20% 80%, rgba(47,107,68,0.25), transparent 60%),
+                    linear-gradient(165deg, #0c1110 0%, #12191a 60%, #0a0f0e 100%);
+}
+.wall-prairie-night {
+  background-image: radial-gradient(circle at 50% 90%, rgba(233,180,76,0.16), transparent 65%),
+                    linear-gradient(170deg, #0f0e0a 0%, #181713 60%, #0d0d0a 100%);
+}
+
+.canada-leaf { font-size: 460px; opacity: 0.10; margin-top: 40px; }
+.brand { color: #6c7680; font-size: 12px; opacity: 0.75; }
+
+/* ---------- top bar ---------- */
+.canada-topbar {
+  background: rgba(15, 18, 22, 0.96);
+  border-bottom: 1px solid #232a33;
+  padding: 6px 12px;
+  min-height: 40px;
+}
+.topbar-logo { color: #e8edf2; font-weight: 700; font-size: 14px; }
+.topbar-menu-btn { color: #e9b44c; }
+.clock { color: #e8edf2; font-size: 13px; }
+.dev-badge {
+  color: #10141a;
+  background: #d52b1e;
+  border-radius: 10px;
+  padding: 2px 10px;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+/* ---------- dock ---------- */
+.canada-dock {
+  background: rgba(15, 18, 22, 0.92);
+  border-top: 1px solid #232a33;
+  padding: 4px 10px;
+  min-height: 52px;
+}
+.dock-btn {
+  color: #dfe5ea;
+  background: #1a2027;
+  border: 1px solid #2b323b;
+  border-radius: 10px;
+  font-size: 20px;
+  padding: 6px 10px;
+}
+.dock-btn:hover { background: #232a33; border-color: #d52b1e; }
+.app-tile {
+  color: #dfe5ea;
+  background: #1c2229;
+  border: 1px solid #2b323b;
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+.app-tile:hover { border-color: #d52b1e; background: #232a33; }
+.task-pill {
+  color: #dfe5ea;
+  background: #21282f;
+  border: 1px solid #2b323b;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+/* launcher */
+.launcher-grid { padding: 0; }
+
+/* ---------- internal windows ---------- */
+.canada-window {
+  background: #171b21;
+  border: 1px solid #2b323b;
+  border-radius: 12px;
+  opacity: 0.96;
+}
+.canada-window.focused {
+  border-color: #d52b1e;
+  opacity: 1.0;
+}
+.canada-window.focused .canada-header { border-bottom: 2px solid #d52b1e; }
+.canada-header {
+  background: #20262e;
+  padding: 6px 10px;
+  border-radius: 12px 12px 0 0;
+  border-bottom: 1px solid #2b323b;
+  color: #dfe5ea;
+  font-weight: 700;
+  font-size: 13px;
+}
+.win-btn {
+  color: #c6c9cc;
+  background: #272e37;
+  border-radius: 8px;
+  padding: 1px 8px;
+  font-size: 12px;
+  min-width: 0;
+  min-height: 0;
+}
+.win-btn:hover { background: #333c47; }
+.close-btn { background: #a02f24; color: #ffffff; }
+.close-btn:hover { background: #c33; }
+.resize-grip {
+  border-radius: 6px 0 0 0;
+  background: linear-gradient(135deg, transparent 40%, #58626d 42%, #58626d 58%, transparent 60%);
+  opacity: 0.7;
+}
+.canada-content { border-radius: 0 0 12px 12px; background: #171b21; }
+
+/* ---------- shared app styling ---------- */
+.app-root { padding: 8px; color: #e8edf2; }
+.app-title { color: #e8edf2; font-weight: 700; font-size: 16px; }
+.section-title { color: #e9b44c; font-weight: 700; }
+.muted-label { color: #98a2ac; font-size: 12px; }
+.statusbar { color: #98a2ac; font-size: 12px; padding-top: 4px; }
+
+.mono,
+textview.mono text {
+  font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace;
+  font-size: 13px;
+}
+.gutter {
+  font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace;
+  color: #58626d;
+  font-size: 13px;
+  background: #141920;
+  padding: 4px 6px;
+}
+
+/* ---------- rink ---------- */
+.rink { border-radius: 12px; background: #10141a; }
+
+/* ---------- paint ---------- */
+.paint-swatch { border-radius: 8px; border: 1px solid #2b323b; }
+.paint-swatch-active { border: 2px solid #d52b1e; }
+.paint-area {
+  border: 1px solid #2b323b;
+  border-radius: 8px;
+  background: #f4f7fa;
+}

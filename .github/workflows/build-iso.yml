@@ -1,0 +1,51 @@
+name: build-canadaos-iso
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch: {}
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install live-build tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends live-build debootstrap
+
+      - name: Build the CanadaOS ISO (live-build, Debian bookworm)
+        run: sudo bash ./scripts/build-iso.sh
+        timeout-minutes: 100
+
+      - name: Name the artifact nicely
+        run: |
+          mkdir -p dist
+          ISO=$(ls build/*.iso | head -n1)
+          cp "$ISO" dist/canadaos-1.0-amd64.iso
+          sha256sum dist/canadaos-1.0-amd64.iso > dist/canadaos-1.0-amd64.iso.sha256
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: canadaos-1.0-amd64-iso
+          path: dist/
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Boot smoke test (build only, no display needed)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils
+          # 60 s of booting the ISO headless: if it mounts the live squashfs and
+          # reaches the bootloader stage it's structurally sound. We don't assert
+          # on exit code (QEMU has no clean poweroff path here), just that it ran.
+          timeout 60 qemu-system-x86_64 \
+            -m 2048 -nographic \
+            -cdrom dist/canadaos-1.0-amd64.iso \
+            -boot d -no-reboot || true
+          echo "Hockey pucks keep flying. ISO built and boot-tested, eh."

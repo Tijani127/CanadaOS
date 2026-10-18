@@ -1,0 +1,5 @@
+#!/bin/sh
+# canadaos-shell — launcher for the CanadaOS desktop shell.
+export PYTHONPATH=/usr/lib/canadaos
+export CANADAOS=1
+exec python3 -m canadaos.main

@@ -1,0 +1,10 @@
+#!/bin/bash
+# canadaos-weather — Environment Canada vibes only.
+temps=(-30 -25 -18 -10 -5 2 15)
+t=${temps[$((RANDOM % ${#temps[@]}))]}
+if [ "$t" -lt -20 ]; then verdict="park the car indoors, eh"
+elif [ "$t" -lt 0 ]; then verdict="toque weather"
+elif [ "$t" -lt 10 ]; then verdict="sweater and regrets"
+else verdict="basically summer, eh"
+fi
+echo "🌦  It's ${t}°C out. Verdict: $verdict"

@@ -1,0 +1,8 @@
+#!/bin/bash
+# hockey — tonight's game, simulated by shell magic.
+TEAMS=("CAN" "LEAFS" "JETS" "OILERS" "FLAMES" "SENS" "HABS")
+N=${#TEAMS[@]}
+A=${TEAMS[$((RANDOM % N))]}
+B=${TEAMS[$((RANDOM % N))]}
+[ "$A" = "$B" ] && B="CAN"
+echo "🏒  Tonight: $A $((RANDOM % 7)) - $((RANDOM % 7)) $B  (GO LEAFS GO)"

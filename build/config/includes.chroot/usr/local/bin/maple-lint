@@ -1,0 +1,18 @@
+#!/bin/bash
+# maple-lint — check .maple files for structural sins (sorry).
+f="${1:-}"
+if [ -z "$f" ]; then
+  echo "usage: maple-lint <file.maple>"
+  exit 1
+fi
+if [ ! -r "$f" ]; then
+  echo "sorry — can't read $f"
+  exit 1
+fi
+ob=$(grep -o '{' "$f" | wc -l)
+cb=$(grep -o '}' "$f" | wc -l)
+if [ "$ob" -ne "$cb" ]; then
+  echo " maple warning: unbalanced braces (open=$ob close=$cb). Pour some syrup on it and retry."
+else
+  echo "🍁 $f looks structurally sweet, eh."
+fi

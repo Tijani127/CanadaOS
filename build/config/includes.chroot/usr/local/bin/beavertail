@@ -1,0 +1,9 @@
+#!/bin/bash
+# beavertail — fried dough, but you already knew that.
+cat <<'EOF'
+🥉  Beavertail recipe:
+      1. Dough
+      2. Fry it
+      3. Cinnamon sugar
+      4. Applaud politely
+EOF

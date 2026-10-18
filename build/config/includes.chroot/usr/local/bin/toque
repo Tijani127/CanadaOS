@@ -1,0 +1,6 @@
+#!/bin/bash
+# toque — weather advice, Canadian edition.
+cat <<EOF
+🧢  Weather report: ${RANDOM:0:2}°C and "a bit chilly" (which means $((RANDOM % 2 == 0))).
+    Verdict: wear your toque. If you don't have one, borrow someone's.
+EOF

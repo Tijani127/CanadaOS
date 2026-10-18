@@ -1,0 +1,9 @@
+#!/bin/bash
+# sorry — apologize as much as physically possible.
+cat <<'EOF'
+Sorry.
+Sorry about that.
+Sorry for apologizing.
+Sorry if that apology was too much.
+Sorry again, eh.
+EOF

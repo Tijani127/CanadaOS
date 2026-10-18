@@ -1,0 +1,7 @@
+#!/bin/bash
+# beaver — dam wisdom.
+cat <<'EOF'
+🦫  The beaver says:
+      "Build the dam right the first time. Then apologize to the water
+       for blocking it. Then build it again in a more polite spot."
+EOF

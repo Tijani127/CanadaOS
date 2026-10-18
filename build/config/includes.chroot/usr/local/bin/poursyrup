@@ -1,0 +1,10 @@
+#!/bin/bash
+# poursyrup — ASCII maple syrup, fresh from the sugar bush.
+for row in 8 7 6 5 4 3 2 1 0; do
+  case $row in
+    0) printf '   ~~~~ maple syrup lake ~~~~   \n';;
+    *) printf '   %*s  \n' "$row" '|' ;;
+  esac
+  sleep 0.1
+done
+echo "🥞  Bon appétit. It's worth it, eh."

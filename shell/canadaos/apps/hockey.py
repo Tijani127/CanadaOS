@@ -1,0 +1,247 @@
+"""Hockey Arena — puck shootout mini-game + NHLe scoreboard, eh."""
+import math
+import random
+
+import gi
+gi.require_version("Gtk", "4.0")
+from gi.repository import Gtk, GLib
+
+from . import base
+from .base import app_root, button, row_label, run_async
+
+W, H = 640, 480
+
+
+class Arena(Gtk.Box):
+    def __init__(self, win):
+        super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        self.add_css_class("app-root")
+        self.win = win
+
+        left = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        title = row_label("🏒 Shootout vs the Goalie", "app-title")
+        left.append(title)
+
+        self.state = "ready"
+        self.puck = (W * 0.5, H - 60)
+        self.target = None
+        self.goalie_t = 0.0
+        self.goalie_x = W * 0.5
+        self.shots = 0
+        self.goals = 0
+        self.flash = None
+        self.flash_until = 0
+
+        self.area = Gtk.DrawingArea()
+        self.area.set_size_request(W, H)
+        self.area.set_hexpand(True)
+        self.area.set_vexpand(True)
+        self.area.add_css_class("rink")
+        self.area.set_draw_func(self._draw, None)
+
+        click = Gtk.GestureClick()
+        click.connect("pressed", self._shot)
+        self.area.add_controller(click)
+        left.append(self.area)
+
+        left.append(row_label("Click the net to shoot. 🏒 Puck goes from bottom, eh.", "muted-label"))
+
+        right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        right.append(row_label("Boxscore", "section-title"))
+        self.score_label = row_label("Shots 0 · Goals 0", "muted-label")
+        right.append(self.score_label)
+        right.append(button("🚨 GO LEAFS GO 🚨", lambda *_: base.info_dialog(self.win, " applaud", "Loudly. That's the whole feature.")))
+        right.append(button("Reset match", lambda *_: self.reset()))
+
+        scores = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        scores.append(row_label("Tonight's scoreboard", "section-title"))
+        self.scores_label = row_label("Fetching…", "muted-label")
+        self.scores_label.set_wrap(True)
+        scores.append(self.scores_label)
+        scores.append(button("Refresh scores", lambda *_: self.fetch_scores()))
+        right.append(scores)
+
+        spacer = Gtk.Box()
+        spacer.set_vexpand(True)
+        right.append(spacer)
+
+        self.append(left)
+        self.append(right)
+
+        GLib.timeout_add(33, self._tick)
+
+    def reset(self):
+        self.shots = 0
+        self.goals = 0
+        self.state = "ready"
+        self.puck = (W * 0.5, H - 60)
+        self.target = None
+        self.flash = None
+        self._score()
+
+    def _score(self):
+        self.score_label.set_text("Shots {} · Goals {}".format(self.shots, self.goals))
+
+    def _shot(self, gesture, n, x, y):
+        if self.state != "ready":
+            return
+        self.target = (x, y)
+        self.state = "flying"
+        self.shots += 1
+        self._score()
+
+    def _goalie_x_now(self):
+        return W * 0.5 + 0.40 * W * math.sin(self.goalie_t * 1.8)
+
+    def _tick(self):
+        self.goalie_t += 0.033
+        self.goalie_x = self._goalie_x_now()
+        if self.state == "flying" and self.target:
+            px, py = self.puck
+            tx, ty = self.target
+            dx, dy = tx - px, ty - py
+            dist = math.hypot(dx, dy)
+            if dist < 4:
+                self.puck = (tx, ty)
+                self._resolve()
+            else:
+                speed = 7.0
+                self.puck = (px + speed * dx / dist, py + speed * dy / dist)
+        if self.flash and GLib.get_monotonic_time() > self.flash_until:
+            self.flash = None
+        self.area.queue_draw()
+        return True
+
+    def _resolve(self):
+        tx, ty = self.target
+        in_net = 60 < ty < 150 and 40 < tx < W - 40
+        if not in_net:
+            self.flash = ("MISS — wide of the net, eh", "#e9b44c")
+        elif abs(tx - self.goalie_x) < 45:
+            self.flash = ("🧤 SAVED!! Nice try though.", "#5db6d7")
+        else:
+            self.goals += 1
+            self._score()
+            self.flash = ("🚨 GOALL!! Canada wins again.", "#7ec142")
+            if self.goals >= 5:
+                self.flash = ("🥇 5 goals! You're basically elite, eh.", "#7ec142")
+        self.flash_until = GLib.get_monotonic_time() + 1_800_000
+        self.state = "ready"
+        self.puck = (W * 0.5, H - 60)
+        self.target = None
+
+    def _draw(self, area, cr, w, h, data=None):
+        scale_x = w / W
+        scale_y = h / H
+        cr.save()
+        cr.scale(scale_x, scale_y)
+
+        # rink
+        cr.set_source_rgb(0.93, 0.96, 1.0)
+        cr.rectangle(20, 30, W - 40, H - 50)
+        cr.fill()
+        # boards
+        cr.set_line_width(6)
+        cr.set_source_rgb(0.2, 0.24, 0.28)
+        cr.rectangle(20, 30, W - 40, H - 50)
+        cr.stroke()
+
+        # center red line
+        cr.set_source_rgb(0.84, 0.17, 0.12)
+        cr.set_line_width(2)
+        cr.move_to(W / 2, 30)
+        cr.line_to(W / 2, H - 20)
+        cr.stroke()
+
+        # faceoff circles
+        for cx in (W * 0.28, W * 0.72):
+            cr.set_source_rgb(0.2, 0.4, 0.8)
+            cr.set_line_width(2)
+            cr.arc(cx, H * 0.42, 48, 0, 6.28318)
+            cr.stroke()
+
+        # net
+        cr.set_source_rgb(0.85, 0.85, 0.85)
+        cr.rectangle(40, 50, W - 80, 100)
+        cr.stroke()
+        cr.set_source_rgb(0.75, 0.78, 0.82)
+        cr.rectangle(40, 50, W - 80, 12)
+        cr.fill_preserve()
+        cr.stroke()
+
+        # goalie block
+        gx = self.goalie_x
+        cr.set_source_rgb(0.14, 0.62, 0.86)
+        cr.rectangle(gx - 45, 70, 90, 18)
+        cr.fill()
+
+        # puck
+        px, py = self.puck
+        cr.set_source_rgb(0.07, 0.07, 0.08)
+        cr.arc(px, py, 7, 0, 6.28318)
+        cr.fill()
+
+        # flash message
+        if self.flash:
+            text, color = self.flash
+            cr.set_source_rgb(*self._rgb(color))
+            cr.select_font_face("Sans", 0, 1)
+            cr.set_font_size(30)
+            ext = cr.text_extents(text)
+            cr.move_to(W / 2 - ext.width / 2, H * 0.62)
+            cr.show_text(text)
+
+        cr.restore()
+
+    @staticmethod
+    def _rgb(hexcolor):
+        h = hexcolor.lstrip("#")
+        return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+
+    def fetch_scores(self):
+        self.scores_label.set_text("Fetching tonight's scores…")
+
+        def fetcher():
+            import json as _json
+            import urllib.request
+            with urllib.request.urlopen("https://api-web.nhle.com/v1/score/now", timeout=8) as resp:
+                raw = resp.read()
+                return _json.loads(raw)
+
+        def done(result):
+            if isinstance(result, Exception) or not isinstance(result, dict):
+                self.scores_label.set_text(
+                    "📡 Offline, so here's simulated hockey:\n\n"
+                    "CAN 4 - TOR 2   •   MTL 3 - WSH 1\n"
+                    "EDM 2 - CGY 5   •   WPG 6 - VAN 0\n"
+                    "(From the polite parallel universe, eh.)")
+                return
+            try:
+                lines = []
+                for g in result.get("games", [])[:8]:
+                    def pick(*keys, obj=None):
+                        o = obj
+                        for k in keys:
+                            if o is None or not isinstance(o, dict):
+                                return None
+                            o = o.get(k)
+                        return o
+                    home = pick("homeTeam", obj=g) or pick("home", obj=g) or {}
+                    away = pick("awayTeam", obj=g) or pick("away", obj=g) or {}
+                    ab = (home.get("abbrev") or home.get("teamAbbrev") or
+                          (home.get("team") or {}).get("abbrev") or "?")
+                    ah = (away.get("abbrev") or away.get("teamAbbrev") or
+                          (away.get("team") or {}).get("abbrev") or "?")
+                    hs = home.get("score")
+                    as_ = away.get("score")
+                    lines.append("{} {} — {} {}".format(ab, as_ if as_ is not None else "-", ah,
+                                                        hs if hs is not None else "-"))
+                self.scores_label.set_text("\n".join(lines) or "No games right now, sorry.")
+            except Exception:
+                self.scores_label.set_text("Scoreboard was terribly rude. Try again, eh.")
+
+        run_async(fetcher, done)
+
+
+def build(win, opts=None):
+    return Arena(win)

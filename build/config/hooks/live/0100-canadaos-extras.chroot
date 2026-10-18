@@ -1,0 +1,16 @@
+#!/bin/sh
+# Optional runtime bindings for CanadaOS apps. Each of these (VTE terminal
+# widget, WebKit browser engine) is wrapped in graceful fallbacks inside the
+# shell, so a failed install here only means a friendlier error message.
+set -e
+
+for pkg in gir1.2-vte-3.91 gir1.2-webkit-6.0 gir1.2-webkit2-4.1 \
+           virtualbox-guest-utils virtualbox-guest-x11 qemu-guest-agent; do
+    if apt-get install -y --no-install-recommends "$pkg" >/dev/null 2>&1; then
+        echo "canadaos hook: installed $pkg"
+    else
+        echo "canadaos hook: $pkg not available, continuing politely (sorry)"
+    fi
+done
+
+exit 0

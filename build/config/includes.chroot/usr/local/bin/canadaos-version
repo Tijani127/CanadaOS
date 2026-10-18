@@ -1,0 +1,4 @@
+#!/bin/bash
+# canadaos-version
+echo "CanadaOS 1.0 'Double-Double' (bash-flavoured, politely dark, huh)"
+echo "Powered by Debian live-build, Python/GTK4, and a lot of maple."

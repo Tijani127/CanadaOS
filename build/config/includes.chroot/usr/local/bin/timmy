@@ -1,0 +1,8 @@
+#!/bin/bash
+# timmy — Tim Hortons drive-thru simulator. Ctrl-C to leave the line.
+n=0
+while true; do
+  n=$((n + 1))
+  echo "☕  Customer #$n in the drive-thru... double-double, eh?"
+  sleep 1
+done

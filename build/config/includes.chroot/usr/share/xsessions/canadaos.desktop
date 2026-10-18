@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Encoding=UTF-8
+Name=CanadaOS
+Comment=The politest operating system, eh.
+Exec=/usr/bin/canadaos-session
+TryExec=/usr/bin/canadaos-shell
+DesktopNames=CANADAOS
+Keywords=canadaos
