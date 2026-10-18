@@ -1,0 +1,11 @@
+#!/bin/sh
+# CanadaOS debug session: a real (minimal) window manager plus a terminal,
+# so a misbehaving canadaos-shell can be launched manually and its
+# traceback actually read instead of staring at a blank wallpaper.
+(
+    sleep 2
+    xterm -title "CanadaOS debug" -geometry 110x34+40+40 -hold -e \
+        "cd /usr/lib/canadaos && PYTHONPATH=/usr/lib/canadaos python3 -m canadaos.main; \
+         echo '--- the shell exited (see the traceback above, eh) ---'; read"
+) &
+exec openbox
