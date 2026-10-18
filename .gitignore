@@ -1,3 +1,5 @@
 
 __pycache__/
 *.pyc
+artifacts/
+gh_failed2.log
