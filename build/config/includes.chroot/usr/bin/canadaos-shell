@@ -1,5 +1,9 @@
-#!/bin/sh
+#!/bin/bash
 # canadaos-shell — launcher for the CanadaOS desktop shell.
 export PYTHONPATH=/usr/lib/canadaos
 export CANADAOS=1
+# Log everything the shell says (normal output AND crashes) so a blank
+# desktop is diagnosable from a serial console instead of a stares-at-the-wall.
+exec > >(tee -a /tmp/canadaos-shell.log) 2>&1
+echo "=== CanadaOS shell starting $(date) ==="
 exec python3 -m canadaos.main
