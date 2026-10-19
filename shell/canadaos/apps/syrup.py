@@ -2,6 +2,7 @@
 import contextlib
 import io
 import re
+import sys
 
 import gi
 gi.require_version("Gtk", "4.0")
@@ -207,28 +208,11 @@ class Syrup(Gtk.Box):
         buf.insert(it, "\n" + indent + extra, -1)
 
     # ---------- the runner ----------
-    def run(self):
-        """Run the .maple program. Maple subset → Python via small
-        call-name rewrites, executed in a restricted namespace."""
+    def _transpile(self):
+        """Maple subset → Python via small call-name rewrites. The newline
+        structure is preserved, so a generated line n corresponds to source
+        line n-1 (one glue preamble line on top)."""
         src = self._text()
-        log = []
-
-        def __log(*parts):
-            log.append(" ".join(str(p) for p in parts))
-
-        def __boil(item="sap", temp=104):
-            msg = "Boiling {} at {}°C — getting thicker…".format(item, temp)
-            log.append(msg)
-            return msg
-
-        def __pour(grade="amber"):
-            msg = "Pouring {}-grade syrup 🍁".format(grade)
-            log.append(msg)
-            return msg
-
-        preamble = [
-            "# generated glue — errors below are source line numbers",
-        ]
         body = []
         for line in src.splitlines():
             s = line.strip()
@@ -248,25 +232,68 @@ class Syrup(Gtk.Box):
             t = re.sub(r"\bcatch\b", "except", t)
             t = re.sub(r"\bharvest\b", "pass", t)  # polite no-op
             body.append(t)
+        code = "\n".join(["# generated glue — reverse-map line numbers",
+                          *body])
+        return code, src
 
-        code = "\n".join([*preamble, *body])
+    def _src_line(self, src_lines, maple_lineno):
+        """Map a <maple>-compile line number back to the source text."""
+        idx = (maple_lineno or 0) - 2  # skip 1 glue line, 1-based → 0-based
+        if 0 <= idx < len(src_lines):
+            return idx + 1, src_lines[idx].strip()
+        return None, ""
+
+    def run(self):
+        """Run the .maple program in a restricted namespace."""
+        code, src = self._transpile()
+        src_lines = src.splitlines()
+        log = []
+
+        def __log(*parts):
+            log.append(" ".join(str(p) for p in parts))
+
+        def __boil(item="sap", temp=104):
+            msg = "Boiling {} at {}°C — getting thicker…".format(item, temp)
+            log.append(msg)
+            return msg
+
+        def __pour(grade="amber"):
+            msg = "Pouring {}-grade syrup 🍁".format(grade)
+            log.append(msg)
+            return msg
+
         ns = {"__log": __log, "__boil": __boil, "__pour": __pour,
               "__name__": "__maple__"}
         ns["__builtins__"] = dict(SAFE_BUILTINS)
         try:
+            compiled = compile(code, "<maple>", "exec")
+        except SyntaxError as ex:
+            src_no, snippet = self._src_line(src_lines, ex.lineno)
+            where = ("line {}: {} | {}".format(src_no, snippet, ex.msg)
+                     if src_no else "{}: {}".format(type(ex).__name__, ex))
+            base.info_dialog(
+                self.win, "Run ▶ — syntax error",
+                "{}\n\nIndentation matters: block lines under a def/if/for/while\n"
+                "use the same indent, and spaces not tabs.".format(where))
+            return
+        try:
             with io.StringIO() as buf:
                 with contextlib.redirect_stdout(buf):
-                    exec(compile(code, "<maple>", "exec"), ns)
+                    exec(compiled, ns)
                 captured = buf.getvalue()
             report = "\n".join([*log, *([captured.rstrip()] if captured else [])]).strip()
             base.info_dialog(self.win, "Run ▶ output",
                              report or "(Program ran clean — no output.)")
-            self.status.set_text("Ran {} lines of maple.".format(len(body)))
+            self.status.set_text("Ran {} lines of maple.".format(len(src_lines)))
         except Exception as ex:
+            tb = sys.exc_info()[2]
+            src_no, snippet = self._src_line(src_lines, tb.tb_lineno if tb else None)
+            where = ("line {}: {} | ".format(src_no, snippet) if src_no else "")
             base.info_dialog(
                 self.win, "Run ▶ error",
-                "{}: {}\n\nRemember, maple speaks:\n"
-                "def / if / for / while / return, calls like boil(\"sap\", temp=104), tap(\"…\"), sorry: bare on a line.".format(type(ex).__name__, ex))
+                "{}{}: {}\n\nThe program stopped mid-run; maple speaks\n"
+                "def / if / for / while / return, plus calls like\n"
+                "boil(\"sap\", temp=104), tap(\"…\"), pour(grade).".format(where, type(ex).__name__, ex))
 
     def lint(self):
         text = self._text()
@@ -281,6 +308,18 @@ class Syrup(Gtk.Box):
             probs.append("Tab character found — this project indents with 4 spaces.")
         if "hoser" in text:
             probs.append("The word 'hoser' found. Please keep it friendly.")
+
+        # A real parse: the same transpile the runner uses, compiled (not
+        # executed). A syntax error is a syntax error — no Grade A for you.
+        code, _src = self._transpile()
+        try:
+            compile(code, "<maple>", "exec")
+        except SyntaxError as ex:
+            src_no, snippet = self._src_line(text.splitlines(), ex.lineno)
+            probs.append("Grammatical trouble: {} — {}".format(
+                "line {}: {}".format(src_no, snippet) if src_no else "unparsed",
+                ex.msg))
+
         out = ("🌳 Sugar bush report:\n" +
                ("\n".join(probs) if probs else
                 "Everything balanced. Pure 100% Grade A."))

@@ -30,7 +30,7 @@ class CanadaWindow(Gtk.Box):
       (dock click, un-minimize), never inside a gesture handler.
     """
 
-    def __init__(self, desktop, app_info):
+    def __init__(self, desktop, app_info, size=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.desktop = desktop
         self.app_info = app_info
@@ -104,7 +104,9 @@ class CanadaWindow(Gtk.Box):
         self._content = content
         self._move_start = None
         self._resize_start = None
-        self._size = (app_info.width, app_info.height)
+        start_size = size or (app_info.width, app_info.height)
+        self._size = start_size
+        self.set_size_request(*start_size)
         self._was_max = False
         self._prev_pos = None
         self._prev_size = None
@@ -145,21 +147,27 @@ class CanadaWindow(Gtk.Box):
         if self._was_max:
             return
         self._move_start = self.pos
+        self._last_pos = self.pos
+        self.add_css_class("dragging")
 
     def _drag_update(self, gesture, offset_x, offset_y):
         if self._was_max or not self._move_start:
             return
-        last = getattr(self, "_last_delta", (0, 0))
-        dx, dy = offset_x - last[0], offset_y - last[1]
-        self._last_delta = (offset_x, offset_y)
-        x = max(0, self.pos[0] + int(dx))
-        y = max(0, self.pos[1] + int(dy))
+        x = max(0, self._move_start[0] + int(offset_x))
+        y = max(0, self._move_start[1] + int(offset_y))
+        last = getattr(self, "_last_pos", self.pos)
+        # Throttle: one reposition per 6 px moved. Per-event moves flood the
+        # cairo renderer in VMs and made dragging feel like wading in syrup.
+        if abs(x - last[0]) < 6 and abs(y - last[1]) < 6:
+            return
         self.pos = (x, y)
+        self._last_pos = (x, y)
         self.desktop.reposition(self)
 
     def _drag_end(self, gesture, offset_x, offset_y):
         self._move_start = None
-        self._last_delta = (0, 0)
+        self._last_pos = None
+        self.remove_css_class("dragging")
 
     # ---------- resizing ----------
     def _resize_begin(self, gesture, start_x, start_y):
@@ -410,6 +418,18 @@ class DesktopWindow(Gtk.ApplicationWindow):
         off = (self._cascade * 70) % 350
         return 80 + off, 60 + off
 
+    def screen_bounds(self):
+        """Actual display size (logical px) from Gdk — available before the
+        shell window has even been mapped, so early launches can fit."""
+        try:
+            display = Gdk.Display.get_default()
+            monitors = display.get_monitors()
+            mon = monitors.get_item(0)
+            geo = mon.get_geometry()
+            return geo.width, geo.height
+        except Exception:
+            return 0, 0
+
     def launch(self, app_id, opts=None):
         info = get_app(app_id)
         if info is None:
@@ -420,7 +440,15 @@ class DesktopWindow(Gtk.ApplicationWindow):
             self._deliver_opts(win, opts)
             self.raise_window(win)
             return win
-        win = CanadaWindow(self, info)
+        # Never open a window bigger than the screen (small VM displays):
+        cw, ch = self.get_canvas_size()
+        if cw <= 1:
+            mw, mh = self.screen_bounds()
+            if mw > 1:
+                cw, ch = max(320, mw), max(240, mh - 96)  # top bar + dock
+        width = min(info.width, max(360, cw))
+        height = min(info.height, max(240, ch))
+        win = CanadaWindow(self, info, size=(width, height))
         self.windows[app_id] = win
         pos = self._cascade_pos()
         win.pos = pos

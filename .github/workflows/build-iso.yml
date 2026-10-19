@@ -9,9 +9,9 @@ jobs:
   build-iso:
     runs-on: ubuntu-24.04
     container:
-      # Build on actual Debian so live-build behaves: no foreign-distro
-      # parent-mirror gymnastics, no Ubuntu host detection, no drama, eh.
-      image: debian:bookworm
+      # Build on actual Debian (trixie base since 1.1) so live-build behaves:
+      # no foreign-distro parent-mirror gymnastics, no Ubuntu host detection.
+      image: debian:trixie
       options: --privileged
     timeout-minutes: 120
     steps:
@@ -25,7 +25,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build the CanadaOS ISO (live-build, Debian bookworm)
+      - name: Build the CanadaOS ISO (live-build, Debian trixie)
         run: bash ./scripts/build-iso.sh
         timeout-minutes: 100
 

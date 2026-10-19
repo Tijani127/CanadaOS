@@ -8,10 +8,15 @@ from .base import app_root, button, row_label
 
 
 def _load_webkit():
-    """Return a webkit module compatible with GTK4, or None (we degrade politely)."""
+    """Return the GTK4 WebKit module, or None (we degrade politely).
+
+    Note: gir1.2-webkit2-4.x is a GTK3 widget and can never live inside this
+    GTK4 shell — loading it is a version mismatch, not a fallback. The GTK4
+    engine is WebKitGTK 6.0 (Debian 13 trixie's gir1.2-webkit-6.0).
+    """
     global WEB_FAIL_REASON
     import importlib
-    candidates = [("WebKit2", "4.1"), ("WebKit", "6.0"), ("WebKit2", "4.0")]
+    candidates = [("WebKit", "6.0")]
     reasons = []
     for name, ver in candidates:
         try:
@@ -84,9 +89,9 @@ class Browser(Gtk.Box):
             fallback.append(row_label(
                 "The WebKit engine could not load in this session.\n"
                 "Reason: {}\n\n"
+                "CanadaOS targets gir1.2-webkit-6.0 (GTK4, Debian 13).\n"
                 "If the reason mentions cairo foreign structs, the image is missing\n"
-                "python3-gi-cairo (Debian splits PyGObject's cairo glue into its own\n"
-                "package). Otherwise: apt install gir1.2-webkit2-4.1".format(reason),
+                "python3-gi-cairo.".format(reason),
                 "muted-label"))
             self.append(fallback)
             return

@@ -22,7 +22,7 @@ chmod +x scripts/*.sh
 echo "⚙️   lb config …"
 cd build
 lb config noauto \
-  --distribution bookworm \
+  --distribution trixie \
   --architectures amd64 \
   --binary-images iso-hybrid \
   --bootappend-live "boot=live components quiet splash console=ttyS0" \
@@ -32,10 +32,10 @@ lb config noauto \
   --debian-installer none \
   "${@}"
 
-# The host (Ubuntu CI runner) would otherwise try to bootstrap bookworm from
-# Ubuntu mirrors. Force the parent mirrors to Debian, always, eh.
+# The host (Ubuntu CI runner) would otherwise try to bootstrap trixie from
+# Ubuntu mirrors. Force the parent mirrors to Debian, always.
 cat >> config/common <<'EOF'
-LB_PARENT_DISTRIBUTION="bookworm"
+LB_PARENT_DISTRIBUTION="trixie"
 LB_PARENT_ARCHIVE_AREAS="main contrib non-free non-free-firmware"
 LB_PARENT_MIRROR_BOOTSTRAP="http://deb.debian.org/debian"
 LB_PARENT_MIRROR_CHROOT="http://deb.debian.org/debian"
@@ -51,7 +51,7 @@ echo "🏗️   lb build (this takes a while — have a double-double)…"
 
 # Ubuntu runners ship /etc/live/build.conf pointing at archive.ubuntu.com,
 # which cannot serve Debian suites (the exact failure: asking ubuntu for
-# bookworm). Rewrite those mirrors to Debian — bullets over charm.
+# trixie). Rewrite those mirrors to Debian — bullets over charm.
 if [ -f /etc/live/build.conf ]; then
     echo "🔧  /etc/live/build.conf before patching:"
     cat /etc/live/build.conf || true
