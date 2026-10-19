@@ -1,4 +1,4 @@
-"""File explorer — sorry, folders, eh."""
+"""File explorer — folders and files, with manners."""
 import os
 import shutil
 from pathlib import Path
@@ -38,7 +38,7 @@ class Files(Gtk.Box):
 
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.new_name = Gtk.Entry()
-        self.new_name.set_placeholder_text("New folder/file name, eh…")
+        self.new_name.set_placeholder_text("New folder/file name…")
         self.new_name.set_hexpand(True)
         actions.append(self.new_name)
         actions.append(button("New Folder", lambda *_: self.new_folder()))
@@ -78,7 +78,7 @@ class Files(Gtk.Box):
                 key=lambda p: (p.is_file(), p.name.lower()))
         except PermissionError:
             entries = []
-            self.status.set_text("Sorry — permission denied, eh.")
+            self.status.set_text("Sorry — permission denied.")
         self.selected = None
         for path in entries:
             row = Gtk.ListBoxRow()
@@ -148,7 +148,7 @@ class Files(Gtk.Box):
     def new_folder(self):
         name = (self.new_name.get_text() or "").strip()
         if not name:
-            base.info_dialog(self.win, "Hmm, eh.", "Type a name first.")
+            base.info_dialog(self.win, "Hmm.", "Type a name first.")
             return
         try:
             (self.cwd / name).mkdir(parents=False, exist_ok=True)
@@ -159,7 +159,7 @@ class Files(Gtk.Box):
     def new_file(self):
         name = (self.new_name.get_text() or "").strip()
         if not name:
-            base.info_dialog(self.win, "Hmm, eh.", "Type a name first.")
+            base.info_dialog(self.win, "Hmm.", "Type a name first.")
             return
         try:
             target = self.cwd / name
@@ -193,6 +193,6 @@ class Files(Gtk.Box):
                 base.info_dialog(self.win, "Sorry", "Delete failed:\n{}".format(ex))
             self.refresh()
 
-        base.confirm_dialog(self.win, "Delete, eh?",
+        base.confirm_dialog(self.win, "Delete?",
                             "Delete {}? I've apologized in advance.".format(self.selected.name),
                             confirmed)

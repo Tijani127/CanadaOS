@@ -62,7 +62,7 @@ class CanadaWindow(Gtk.Box):
             traceback.print_exc()
             err = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
             err.add_css_class("app-root")
-            msg = Gtk.Label(label="{} — apologetically crashed, sorry, eh 🍁\n\n(run the debug session for the traceback)".format(app_info.title))
+            msg = Gtk.Label(label="{} — apologetically crashed, sorry 🍁\n\n(run the debug session for the traceback)".format(app_info.title))
             msg.set_wrap(True)
             msg.set_sensitive(False)
             err.append(msg)
@@ -187,7 +187,7 @@ class TopBar(Gtk.Box):
         logo.add_css_class("topbar-logo")
         self.append(logo)
 
-        menu_btn = Gtk.MenuButton(label="Eh-Menu ▾")
+        menu_btn = Gtk.MenuButton(label="Apps ▾")
         menu_btn.add_css_class("topbar-menu-btn")
         self.menu_btn = menu_btn
         menu_btn.set_popover(self._build_launcher(desktop))
@@ -243,7 +243,7 @@ class TopBar(Gtk.Box):
             tile.connect("clicked", on_tile)
             grid.append(tile)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        note = Gtk.Label(label="Apps, eh? Locked tiles need Dev Mode (Settings → Dev Mode).")
+        note = Gtk.Label(label="Locked tiles need Dev Mode (Settings → Developer Mode).")
         note.add_css_class("muted-label")
         note.set_wrap(True)
         box.append(note)
@@ -329,15 +329,15 @@ class DesktopWindow(Gtk.ApplicationWindow):
         leaf.set_sensitive(False)
         self.canvas.put(leaf, 60, 120)
 
-        brand = Gtk.Label(label="CanadaOS — est. 1867, eh.")
+        brand = Gtk.Label(label="CanadaOS — est. 1867")
         brand.add_css_class("brand")
         brand.set_sensitive(False)
         self.canvas.put(brand, 24, 24)
 
         welcome = Gtk.Label(label=(
             "Welcome to CanadaOS 🍁\n\n"
-            "The Eh-Menu (top-left) opens apps. Nothing opens by itself, we promise, eh.\n"
-            "Settings ⚙ has the Dev Mode unlock. Hockey Arena 🏒 is live.\n"
+            "The Apps menu (top-left) opens programs. Nothing opens by itself.\n"
+            "Settings ⚙ has the Developer Mode unlock. Hockey Arena 🏒 is live.\n"
             "All windows can be dragged by their title bars."))
         welcome.add_css_class("welcome-note")
         welcome.set_sensitive(False)

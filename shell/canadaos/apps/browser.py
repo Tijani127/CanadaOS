@@ -9,17 +9,24 @@ from .base import app_root, button, row_label
 
 def _load_webkit():
     """Return a webkit module compatible with GTK4, or None (we degrade politely)."""
+    global WEB_FAIL_REASON
     import importlib
     candidates = [("WebKit2", "4.1"), ("WebKit", "6.0"), ("WebKit2", "4.0")]
+    reasons = []
     for name, ver in candidates:
         try:
             import gi as _gi
             _gi.require_version(name, ver)
             mod = importlib.import_module("gi.repository." + name)
             return mod
-        except (ValueError, TypeError, ImportError):
+        except Exception as ex:  # record the true reason for the fallback screen
+            reasons.append("{} {}: {}".format(name, ver, ex))
             continue
+    WEB_FAIL_REASON = "; ".join(reasons)
     return None
+
+
+WEB_FAIL_REASON = "not attempted"
 
 
 HOME_HTML = """<!doctype html><html><head><meta charset='utf-8'>
@@ -34,7 +41,7 @@ a{color:#e9b44c;text-decoration:none}
 background:#1c2229;border:1px solid #2b323b}
 </style></head><body><main>
 <h1>🍁 canadaos://home</h1>
-<p>Start page. Real internet is just a URL away, eh.</p>
+<p>Start page. The real internet is just a URL away.</p>
 <div class='row'><a href='https://www.wikipedia.org/wiki/Canada'>Canada (Wikipedia)</a></div>
 <div class='row'><a href='https://www.hockeycanada.ca'>Hockey Canada</a></div>
 <div class='row'><a href='https://www.timhortons.ca'>Tim Hortons</a></div>
@@ -49,6 +56,7 @@ class Browser(Gtk.Box):
         self.win = win
 
         self._web_mod = _load_webkit()
+        self._web_fail_reason = WEB_FAIL_REASON
 
         toolbar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         toolbar.append(button("◀", lambda *_: self._wrapping("go_back")))
@@ -58,7 +66,7 @@ class Browser(Gtk.Box):
 
         self.url = Gtk.Entry()
         self.url.set_hexpand(True)
-        self.url.set_placeholder_text("Type a URL, eh. (https://…)")
+        self.url.set_placeholder_text("Type a URL… (https://)")
         self.url.connect("activate", self._go)
         toolbar.append(self.url)
 
@@ -71,9 +79,15 @@ class Browser(Gtk.Box):
         if self._web_mod is None:
             fallback = app_root(spacing=10)
             fallback.set_valign(Gtk.Align.CENTER)
-            fallback.append(row_label("🌐 Browser engine not installed.", "app-title"))
-            fallback.append(row_label("This distro build didn't include a WebKit gir package.\n"
-                                      "On Debian: apt install gir1.2-webkit-6.0", "muted-label"))
+            reason = getattr(self, "_web_fail_reason", "no WebKit gir package found")
+            fallback.append(row_label("🌐 Browser engine unavailable.", "app-title"))
+            fallback.append(row_label(
+                "The WebKit engine could not load in this session.\n"
+                "Reason: {}\n\n"
+                "If the reason mentions cairo foreign structs, the image is missing\n"
+                "python3-gi-cairo (Debian splits PyGObject's cairo glue into its own\n"
+                "package). Otherwise: apt install gir1.2-webkit2-4.1".format(reason),
+                "muted-label"))
             self.append(fallback)
             return
 
@@ -94,7 +108,7 @@ class Browser(Gtk.Box):
         self.append(toolbar)
         self.append(scroller)
         self.append(quick)
-        self.append(base.status_bar("🌐 Loaded. Mind the ice, eh."))
+        self.append(base.status_bar("🌐 Loaded. Mind the ice."))
         self.home()
 
     def _wrapping(self, method):

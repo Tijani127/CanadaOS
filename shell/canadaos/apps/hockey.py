@@ -1,4 +1,4 @@
-"""Hockey Arena — puck shootout mini-game + NHLe scoreboard, eh."""
+"""Hockey Arena — puck shootout mini-game + scoreboard."""
 import math
 import random
 
@@ -36,8 +36,10 @@ class Arena(Gtk.Box):
         self.goalie_x = W * 0.5
         self.shots = 0
         self.goals = 0
+        self.streak = 0
         self.flash = None
         self.flash_until = 0
+        self.aim = None
 
         self.area = Gtk.DrawingArea()
         self.area.set_size_request(W, H)
@@ -49,15 +51,22 @@ class Arena(Gtk.Box):
         click = Gtk.GestureClick()
         click.connect("pressed", self._shot)
         self.area.add_controller(click)
+        hover = Gtk.EventControllerMotion()
+        hover.connect("motion", self._aim)
+        hover.connect("leave", self._aim_leave)
+        self.area.add_controller(hover)
         left.append(self.area)
 
-        left.append(row_label("Click the net to shoot. 🏒 Puck goes from bottom, eh.", "muted-label"))
+        left.append(row_label("Aim inside the net and click to shoot — the goalie learns as you score.",
+                              "muted-label"))
 
         right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         right.append(row_label("Boxscore", "section-title"))
         self.score_label = row_label("Shots 0 · Goals 0", "muted-label")
         right.append(self.score_label)
-        right.append(button("🚨 GO LEAFS GO 🚨", lambda *_: base.info_dialog(self.win, " applaud", "Loudly. That's the whole feature.")))
+        right.append(button("🚨 GO LEAFS GO 🚨",
+                            lambda *_: base.info_dialog(self.win, "📣 Applause",
+                                                        "Loudly. That's the whole feature.")))
         right.append(button("Reset match", lambda *_: self.reset()))
 
         scores = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -80,6 +89,7 @@ class Arena(Gtk.Box):
     def reset(self):
         self.shots = 0
         self.goals = 0
+        self.streak = 0
         self.state = "ready"
         self.puck = (W * 0.5, H - 60)
         self.target = None
@@ -87,7 +97,8 @@ class Arena(Gtk.Box):
         self._score()
 
     def _score(self):
-        self.score_label.set_text("Shots {} · Goals {}".format(self.shots, self.goals))
+        self.score_label.set_text("Shots {} · Goals {} · Streak {}".format(
+            self.shots, self.goals, self.streak))
 
     def _shot(self, gesture, n, x, y):
         if self.state != "ready":
@@ -97,23 +108,35 @@ class Arena(Gtk.Box):
         self.shots += 1
         self._score()
 
+    def _aim(self, _ctl, x, y):
+        self.aim = (x, y)
+
+    def _aim_leave(self, _ctl):
+        self.aim = None
+
+    def _goalie_speed(self):
+        # The goalie trains while you celebrate: harder to beat at higher scores.
+        return 0.033 * (1.0 + 0.5 * self.goals)
+
     def _goalie_x_now(self):
         return W * 0.5 + 0.40 * W * math.sin(self.goalie_t * 1.8)
 
     def _tick(self):
-        self.goalie_t += 0.033
+        self.goalie_t += self._goalie_speed()
         self.goalie_x = self._goalie_x_now()
         if self.state == "flying" and self.target:
             px, py = self.puck
             tx, ty = self.target
             dx, dy = tx - px, ty - py
             dist = math.hypot(dx, dy)
-            if dist < 4:
+            if dist < 14:
                 self.puck = (tx, ty)
                 self._resolve()
             else:
-                speed = 7.0
-                self.puck = (px + speed * dx / dist, py + speed * dy / dist)
+                # A real slapper: crosses the rink in well under a second.
+                speed = 15.0 + 0.25 * (H - py)
+                step = min(speed, dist)
+                self.puck = (px + step * dx / dist, py + step * dy / dist)
         if self.flash and GLib.get_monotonic_time() > self.flash_until:
             self.flash = None
         self.area.queue_draw()
@@ -122,16 +145,24 @@ class Arena(Gtk.Box):
     def _resolve(self):
         tx, ty = self.target
         in_net = 60 < ty < 150 and 40 < tx < W - 40
+        self.streak = self.streak + 1 if in_net and abs(tx - self.goalie_x) >= 45 else 0
         if not in_net:
-            self.flash = ("MISS — wide of the net, eh", "#e9b44c")
+            post = abs(tx - 40) < 18 or abs(tx - (W - 40)) < 18 or abs(ty - 150) < 18
+            self.flash = ("PING — off the post!" if post else "MISS — wide of the net.",
+                          "#e9b44c")
         elif abs(tx - self.goalie_x) < 45:
-            self.flash = ("🧤 SAVED!! Nice try though.", "#5db6d7")
+            self.flash = ("🧤 SAVED! The goalie kicks himself.", "#5db6d7")
         else:
             self.goals += 1
             self._score()
-            self.flash = ("🚨 GOALL!! Canada wins again.", "#7ec142")
+            self.flash = ("🚨 GOAL! Streak of {} in a row.".format(self.streak)
+                          if self.streak > 1 else "🚨 GOAL!", "#7ec142")
             if self.goals >= 5:
-                self.flash = ("🥇 5 goals! You're basically elite, eh.", "#7ec142")
+                self.flash = ("🥇 FIVE goals — you're basically elite.", "#7ec142")
+                self.streak = 0
+                self.goals = 0
+                self.shots = 0
+                self._score()
         self.flash_until = GLib.get_monotonic_time() + 1_800_000
         self.state = "ready"
         self.puck = (W * 0.5, H - 60)
@@ -188,6 +219,25 @@ class Arena(Gtk.Box):
         cr.arc(px, py, 7, 0, 6.28318)
         cr.fill()
 
+        # aim reticle while waiting for a shot
+        if self.state == "ready" and self.aim:
+            ax, ay = self.aim
+            cr.set_source_rgba(0.84, 0.17, 0.12, 0.9)
+            cr.set_line_width(2)
+            cr.set_dash([4, 4])
+            cr.arc(ax, ay, 16, 0, 6.28318)
+            cr.stroke()
+            cr.set_dash([])
+            cr.move_to(ax - 24, ay)
+            cr.line_to(ax - 6, ay)
+            cr.move_to(ax + 6, ay)
+            cr.line_to(ax + 24, ay)
+            cr.move_to(ax, ay - 24)
+            cr.line_to(ax, ay - 6)
+            cr.move_to(ax, ay + 6)
+            cr.line_to(ax, ay + 24)
+            cr.stroke()
+
         # flash message
         if self.flash:
             text, color = self.flash
@@ -221,7 +271,7 @@ class Arena(Gtk.Box):
                     "📡 Offline, so here's simulated hockey:\n\n"
                     "CAN 4 - TOR 2   •   MTL 3 - WSH 1\n"
                     "EDM 2 - CGY 5   •   WPG 6 - VAN 0\n"
-                    "(From the polite parallel universe, eh.)")
+                    "(From the polite parallel universe.)")
                 return
             try:
                 lines = []
@@ -245,7 +295,7 @@ class Arena(Gtk.Box):
                                                         hs if hs is not None else "-"))
                 self.scores_label.set_text("\n".join(lines) or "No games right now, sorry.")
             except Exception:
-                self.scores_label.set_text("Scoreboard was terribly rude. Try again, eh.")
+                self.scores_label.set_text("The scoreboard service was unavailable. Try again.")
 
         run_async(fetcher, done)
 

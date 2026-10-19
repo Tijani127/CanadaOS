@@ -1,4 +1,4 @@
-"""App registry — the launcher's brain, eh."""
+"""App registry — the launcher's brain."""
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
@@ -37,9 +37,9 @@ def _make_factory(info):
 
 APPS = [
     AppInfo("paint", "Paint", "🎨", build_paint, 940, 640, False,
-            "Paint with Canadian colours, eh."),
+            "Paint with Canadian colours."),
     AppInfo("notepad", "Notepad", "🗒️", build_notepad, 820, 580, False,
-            "Plain text notes. No dev perks, eh."),
+            "Plain text notes. No dev perks."),
     AppInfo("browser", "Browser", "🌐", build_browser, 1100, 720, False,
             "Real internet via WebKit."),
     AppInfo("files", "Files", "🗃️", build_files, 940, 620, False,
@@ -47,7 +47,7 @@ APPS = [
     AppInfo("hockey", "Hockey Arena", "🏒", build_hockey, 1080, 660, False,
             "Shootout simulator + NHLe scores."),
     AppInfo("settings", "Settings", "⚙️", build_settings, 760, 620, False,
-            "Configure CanadaOS, eh."),
+            "Configure CanadaOS."),
     AppInfo("terminal", "Sorry Terminal", "💻", build_terminal, 900, 580, True,
             "Real bash with politeness layer."),
     AppInfo("syrup", "Maple Syrup Editor", "🍁", build_syrup, 1040, 700, True,

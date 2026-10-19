@@ -33,7 +33,7 @@ class Notepad(Gtk.Box):
         scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scroller.set_child(self.view)
 
-        self.status_label = base.status_bar("Notepad. Sorry, no autosave, eh.")
+        self.status_label = base.status_bar("Notepad. No autosave — save often.")
         self.char_count = row_label("chars 0 · words 0", "muted-label", align=Gtk.Align.END)
         self.char_count.set_hexpand(True)
         self.char_count.set_halign(Gtk.Align.END)
@@ -85,7 +85,7 @@ class Notepad(Gtk.Box):
             self.file_label.set_text(path)
             self.status_label.set_text("Loaded " + path)
         except OSError as ex:
-            base.info_dialog(self.win, "Sorry", "Couldn't read that file, eh:\n{}".format(ex))
+            base.info_dialog(self.win, "Sorry", "Couldn't read that file:\n{}".format(ex))
 
     def open_file(self):
         base.choose_open_file(self.win, lambda p: self.load_path(p) if p else None,

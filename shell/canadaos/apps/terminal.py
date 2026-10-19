@@ -50,7 +50,7 @@ class Terminal(Gtk.Box):
 
         err = self._spawn_shell(term, _shell_argv())
         if err is not None:
-            self._lite_terminal(note="VTE spawn failed ({}), eh — using the lite terminal.".format(err))
+            self._lite_terminal(note="VTE spawn failed ({}) — using the lite terminal.".format(err))
             return
 
         scroller = Gtk.ScrolledWindow()
@@ -114,9 +114,9 @@ class Terminal(Gtk.Box):
         out.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
         out.set_vexpand(True)
         out.add_css_class("mono")
-        out.get_buffer().insert(out.get_buffer().get_end_iter(),
-                                "Sorry Terminal (lite) — real bash beneath, eh.\n"
-                                "Type a command below and press Enter.\n\n")
+        buf.insert(buf.get_end_iter(),
+                   "Sorry Terminal (lite) — real bash underneath.\n"
+                   "Type a command and press Enter. ↑/↓ walks history.\n\n")
         scroller = Gtk.ScrolledWindow()
         scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scroller.set_vexpand(True)
@@ -125,8 +125,20 @@ class Terminal(Gtk.Box):
         entry_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         entry = Gtk.Entry()
         entry.set_hexpand(True)
-        entry.set_placeholder_text("Type a command, eh… (try: sorry, hockey, poursyrup)")
+        entry.set_placeholder_text("Type a command… (try: sorry, hockey, poursyrup)")
+        entry.add_css_class("mono")
         entry_row.append(entry)
+
+        filler = Gtk.Box()
+        filler.set_hexpand(True)
+        entry_row.append(filler)
+        entry_row.append(button("Run ⏎", lambda *_: self._send(entry, buf, out, scroller, fd, hist)))
+        entry.connect("activate", lambda e: self._send(entry, buf, out, scroller, fd, hist))
+
+        # ↑/↓ walks the command history, so repeat commands aren't retyped.
+        hist = {"items": [], "idx": 0}
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", self._history_nav, entry, hist)
 
         # same shell wrapper as the VTE path
         shell = _shell_argv()
@@ -146,18 +158,13 @@ class Terminal(Gtk.Box):
                 pass
         fd = master
 
-        filler = Gtk.Box()
-        filler.set_hexpand(True)
-        entry_row.append(filler)
-        entry_row.append(button("Run ⏎", lambda *_: self._send(entry, buf, out, fd)))
-        entry.connect("activate", lambda e: self._send(entry, buf, out, fd))
-
         status = base.status_bar(
-            (note or "") + " Lite mode: line-by-line input; full xterm features need gir1.2-vte-3.91.")
+            (note or "") + " Lite mode: line-by-line input; scroll with the wheel or drag the bar.")
 
-        self.append(entry_row)
-        self.append(scroller)
+        self.append(scroller)          # output on top…
+        self.append(entry_row)         # …input at the bottom like a real terminal
         self.append(status)
+        entry.add_controller(keys)
 
         ansi = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07]*\x07|\r")
 
@@ -170,20 +177,46 @@ class Terminal(Gtk.Box):
                 return False
             cleaned = ansi.sub("", data.decode("utf-8", "replace"))
             buf.insert(buf.get_end_iter(), cleaned)
-            out.scroll_mark_onscreen(buf.get_insert())
+            # Only chase the bottom when the user already is there, so
+            # reading scrollback isn't yanked out from under them.
+            vadj = scroller.get_vadjustment()
+            at_bottom = vadj.get_value() + vadj.get_page_size() >= vadj.get_upper() - 48
+            if at_bottom:
+                out.scroll_mark_onscreen(buf.get_insert())
             return True
 
         GLib.io_add_watch(fd, GLib.IOCondition.IN, _pump)
 
     @staticmethod
-    def _send(entry, buf, out, fd):
+    def _send(entry, buf, out, scroller, fd, hist):
         line = entry.get_text()
         entry.set_text("")
+        if line.strip():
+            hist["items"].append(line)
+            hist["idx"] = len(hist["items"])
         try:
             os.write(fd, (line + "\n").encode("utf-8"))
         except OSError as ex:
             buf.insert(buf.get_end_iter(), "\n(write failed: {})\n".format(ex))
             out.scroll_mark_onscreen(buf.get_insert())
+
+    @staticmethod
+    def _history_nav(_ctl, keyval, _code, _state, entry, hist):
+        from gi.repository import Gdk
+        items = hist["items"]
+        if not items:
+            return False
+        if keyval == Gdk.KEY_Up:
+            hist["idx"] = max(0, hist["idx"] - 1)
+            entry.set_text(items[hist["idx"]])
+            entry.set_position(-1)
+            return True
+        if keyval == Gdk.KEY_Down:
+            hist["idx"] = min(len(items), hist["idx"] + 1)
+            entry.set_text(items[hist["idx"]] if hist["idx"] < len(items) else "")
+            entry.set_position(-1)
+            return True
+        return False
 
     def build(self):
         return self

@@ -65,7 +65,7 @@ def lock_content(win, app_info):
     box.set_valign(Gtk.Align.CENTER)
     box.set_halign(Gtk.Align.CENTER)
 
-    title = row_label("🔒 {} is locked, eh".format(app_info.title), "app-title")
+    title = row_label("🔒 {} is locked".format(app_info.title), "app-title")
     desc = row_label("Did you know: in most countries this app ships with the OS.\n"
                      "In CanadaOS it arrives only for Developers who pack up their toque and gear up.",
                      "muted-label")
@@ -115,7 +115,7 @@ def info_dialog(parent, title, text):
     body = row_label(text, "muted-label")
     body.set_wrap(True)
     card.append(body)
-    card.append(button("OK, eh", lambda *_: _dismiss(scrim), "app-tile"))
+    card.append(button("OK", lambda *_: _dismiss(scrim), "app-tile"))
     scrim.append(card)
     ov.add_overlay(scrim)
 
@@ -134,7 +134,7 @@ def confirm_dialog(parent, title, text, on_yes):
     row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
     row.set_halign(Gtk.Align.CENTER)
     row.append(button("Cancel", lambda *_: _dismiss(scrim), "app-tile"))
-    row.append(button("Sorry — yes",
+    row.append(button("Yes",
                       lambda *_: (_dismiss(scrim), on_yes()), "app-tile"))
     card.append(row)
     scrim.append(card)
@@ -222,7 +222,7 @@ def choose_open_file(parent, on_done, mime=None):
     card.set_halign(Gtk.Align.CENTER)
     card.set_valign(Gtk.Align.CENTER)
     card.set_size_request(520, 480)
-    card.append(row_label("Open a file, eh", "app-title"))
+    card.append(row_label("Open a file", "app-title"))
 
     fb = _file_browser_card()
     fb["on_file"] = done
@@ -272,7 +272,7 @@ def choose_save_file(parent, on_done, suggested=None):
     name_entry = Gtk.Entry()
     name_entry.set_hexpand(True)
     name_entry.set_text(suggested or "")
-    name_entry.set_placeholder_text("File name, eh…")
+    name_entry.set_placeholder_text("File name…")
     name_row.append(name_entry)
     card.append(name_row)
 

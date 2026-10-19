@@ -1,4 +1,4 @@
-"""Paint app — draw with Canadian colours, eh."""
+"""Paint app — draw with Canadian colours."""
 import gi
 gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, Gdk  # noqa: F401
@@ -107,7 +107,7 @@ class Paint(Gtk.Box):
 
         self.append(toolbar)
         self.append(scroller)
-        self.append(base_utils.status_bar("🎨 Paint — maple red saved your masterpieces, eh"))
+        self.append(base_utils.status_bar("🎨 Paint — every masterpiece saved politely"))
 
     def _toggle_eraser(self, b):
         self.color = "#f4f7fa" if b.get_active() else "#d52b1e"

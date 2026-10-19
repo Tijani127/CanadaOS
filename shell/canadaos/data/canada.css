@@ -132,6 +132,29 @@
 .muted-label { color: #98a2ac; font-size: 12px; }
 .statusbar { color: #98a2ac; font-size: 12px; padding-top: 4px; }
 
+/* Any label we didn't style explicitly must still be readable on dark
+   backgrounds — GTK's default theme text is near-black (FORCE_DARK is not
+   reliable in GNOME-less sessions), which looked like invisible text. */
+.canada-window label { color: #e8edf2; }
+/* Higher-specificity re-statements so the generic rule can't flatten them: */
+.canada-window .app-title { color: #e8edf2; font-weight: 700; font-size: 16px; }
+.canada-window .section-title { color: #e9b44c; font-weight: 700; }
+.canada-window .muted-label { color: #98a2ac; font-size: 12px; }
+.canada-window .statusbar { color: #9aa4ae; font-size: 12px; padding-top: 4px; }
+.canada-window .gutter { color: #5c6670; }
+.canada-window .toast { color: #ffffff; }
+
+/* Dark-mode scrollbars: the default theme ships near-invisible ones. */
+scrollbar { background-color: transparent; }
+scrollbar slider {
+  background-color: #39424d;
+  min-width: 9px;
+  min-height: 36px;
+  border-radius: 5px;
+  margin: 2px;
+}
+scrollbar slider:hover { background-color: #4d5966; }
+
 .mono,
 textview.mono text {
   font-family: "JetBrains Mono", "DejaVu Sans Mono", monospace;

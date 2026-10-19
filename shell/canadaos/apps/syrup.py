@@ -1,4 +1,6 @@
-"""Maple Syrup editor — the .maple editor with dev perks."""
+"""Maple Syrup editor — the .maple editor with a real runner."""
+import contextlib
+import io
 import re
 
 import gi
@@ -6,10 +8,10 @@ gi.require_version("Gtk", "4.0")
 from gi.repository import Gtk, GLib
 
 from . import base
-from .base import app_root, button, row_label
+from .base import button, row_label
 
 KEYWORDS = [
-    "tap", "pour", "harvest", "boil", "sorry", "thanks", "please", "eh",
+    "tap", "pour", "harvest", "boil", "sorry", "thanks", "please",
     "import", "def", "return", "for", "while", "in", "if", "else", "elif",
     "try", "catch", "raise",
 ]
@@ -24,22 +26,29 @@ TAG_DEFS = [
     ("bracket", "#5db6d7", None),
 ]
 
-SAMPLE = """# First .maple program. Welcome to the sugar bush, eh.
+SAMPLE = """# First .maple program. Welcome to the sugar bush.
 import syrup
 
 def make_syrup(size, grade):
     if grade < "a":
-        sorry  # not our finest, eh
+        sorry # not our finest batch
         return size / 2
     boil("sap", temp=104)
     tap("maple trees")
     return pour(grade)
+
+make_syrup(10, "amber")
 """
 
 PATTERN = re.compile(
     r"(#.*$|\"[^\"]*\"|'[^']*'|\b(?:{})\b|\b\d+(?:\.\d+)?\b|[{}\[\]()<>])".format(
         "|".join(KEYWORDS), re.escape("{}[]()<>")))
-BUILTIN_PATTERN = re.compile(r"\b(?:{})\b".format("|".join(BUILTINS)))
+
+SAFE_BUILTINS = {
+    "print": print, "range": range, "len": len,
+    "min": min, "max": max, "abs": abs, "round": round,
+    "str": str, "int": int, "float": float,
+}
 
 
 class Syrup(Gtk.Box):
@@ -57,6 +66,7 @@ class Syrup(Gtk.Box):
         toolbar.append(button("New Sample 🍁", lambda *_: self.load_sample()))
         toolbar.append(button("Open 📂", lambda *_: self.open_file()))
         toolbar.append(button("Save 💾", lambda *_: self.save()))
+        toolbar.append(button("Run ▶", lambda *_: self.run(), "app-tile"))
         toolbar.append(button("Pour (Lint) 🥞", lambda *_: self.lint()))
         toolbar.append(button("Help ❔", lambda *_: self.help()))
 
@@ -90,7 +100,7 @@ class Syrup(Gtk.Box):
         scroller.set_child(self.view)
         editor_row.append(scroller)
 
-        self.status = base.status_bar("Maple editor. Ln 1, Col 1 — apologies included, eh.")
+        self.status = base.status_bar("Maple editor. Ln 1, Col 1.")
 
         self.append(toolbar)
         self.append(editor_row)
@@ -110,7 +120,7 @@ class Syrup(Gtk.Box):
     def load_sample(self):
         self.buffer.set_text(SAMPLE)
         self.path = None
-        self.status.set_text("Fresh sample loaded. Tap away, eh.")
+        self.status.set_text("Fresh sample loaded. Press Run ▶ to see it flow.")
 
     def open_file(self):
         base.choose_open_file(self.win, lambda p: self.load_path(p) if p else None)
@@ -120,7 +130,7 @@ class Syrup(Gtk.Box):
             with open(path, "r", encoding="utf-8") as fh:
                 self.buffer.set_text(fh.read())
             self.path = path
-            self.status.set_text("Loaded {} — sweeter now, eh.".format(path))
+            self.status.set_text("Loaded {}".format(path))
         except (OSError, UnicodeDecodeError) as ex:
             base.info_dialog(self.win, "Sorry", "Couldn't load:\n{}".format(ex))
 
@@ -134,7 +144,7 @@ class Syrup(Gtk.Box):
                 with open(path, "w", encoding="utf-8") as fh:
                     fh.write(self._text())
                 self.path = path
-                self.status.set_text("Poured to disk: {}".format(path))
+                self.status.set_text("Saved to {}".format(path))
             except OSError as ex:
                 base.info_dialog(self.win, "Sorry", "Save failed:\n{}".format(ex))
         base.choose_save_file(self.win, done, suggested="syrup.maple")
@@ -151,8 +161,7 @@ class Syrup(Gtk.Box):
 
     def _on_cursor(self, buf, pspec):
         it = buf.get_iter_at_mark(buf.get_insert())
-        self.status.set_text("Maple editor. Ln {}, Col {} — apologies included, eh."
-                             .format(it.get_line() + 1, it.get_line_offset() + 1))
+        self.status.set_text("Ln {}, Col {}".format(it.get_line() + 1, it.get_line_offset() + 1))
 
     def _highlight(self):
         self._highlight_soon_id = None
@@ -194,8 +203,70 @@ class Syrup(Gtk.Box):
         line_start.set_line_offset(0)
         line_text = buf.get_text(line_start, it, True)
         indent = " " * (len(line_text) - len(line_text.lstrip(" ")))
-        extra = "    " if line_text.rstrip().rstrip(":").rstrip() != line_text.strip() or line_text.rstrip().endswith(":") else ""
+        extra = "    " if line_text.rstrip().endswith(":") else ""
         buf.insert(it, "\n" + indent + extra, -1)
+
+    # ---------- the runner ----------
+    def run(self):
+        """Run the .maple program. Maple subset → Python via small
+        call-name rewrites, executed in a restricted namespace."""
+        src = self._text()
+        log = []
+
+        def __log(*parts):
+            log.append(" ".join(str(p) for p in parts))
+
+        def __boil(item="sap", temp=104):
+            msg = "Boiling {} at {}°C — getting thicker…".format(item, temp)
+            log.append(msg)
+            return msg
+
+        def __pour(grade="amber"):
+            msg = "Pouring {}-grade syrup 🍁".format(grade)
+            log.append(msg)
+            return msg
+
+        preamble = [
+            "# generated glue — errors below are source line numbers",
+        ]
+        body = []
+        for line in src.splitlines():
+            s = line.strip()
+            if not s or s.startswith("#") or s.startswith("import "):
+                body.append("")  # keep line numbering stable
+                continue
+            m = re.match(r"^(sorry|thanks|please)\b\s*(?:#.*)?$", s)
+            if m and "(" not in s:
+                body.append("__log('{}')".format(m.group(1)))
+                continue
+            t = line
+            t = re.sub(r"\b[sS]orry\s*\(", "__log(", t)
+            t = re.sub(r"\b[tT]ap\s*\(", "__log(", t)
+            t = re.sub(r"\b[tT]hanks\s*\(|\b[pP]lease\s*\(", "__log(", t)
+            t = re.sub(r"\b[bB]oil\s*\(", "__boil(", t)
+            t = re.sub(r"\b[pP]our\s*\(", "__pour(", t)
+            t = re.sub(r"\bcatch\b", "except", t)
+            t = re.sub(r"\bharvest\b", "pass", t)  # polite no-op
+            body.append(t)
+
+        code = "\n".join([*preamble, *body])
+        ns = {"__log": __log, "__boil": __boil, "__pour": __pour,
+              "__name__": "__maple__"}
+        ns["__builtins__"] = dict(SAFE_BUILTINS)
+        try:
+            with io.StringIO() as buf:
+                with contextlib.redirect_stdout(buf):
+                    exec(compile(code, "<maple>", "exec"), ns)
+                captured = buf.getvalue()
+            report = "\n".join([*log, *([captured.rstrip()] if captured else [])]).strip()
+            base.info_dialog(self.win, "Run ▶ output",
+                             report or "(Program ran clean — no output.)")
+            self.status.set_text("Ran {} lines of maple.".format(len(body)))
+        except Exception as ex:
+            base.info_dialog(
+                self.win, "Run ▶ error",
+                "{}: {}\n\nRemember, maple speaks:\n"
+                "def / if / for / while / return, calls like boil(\"sap\", temp=104), tap(\"…\"), sorry: bare on a line.".format(type(ex).__name__, ex))
 
     def lint(self):
         text = self._text()
@@ -207,26 +278,26 @@ class Syrup(Gtk.Box):
         if sb != cb2:
             probs.append("Unbalanced brackets (open {} close {}).".format(sb, cb2))
         if "\t" in text:
-            probs.append("Tab in there. We use 4 spaces (it's the law, eh).")
+            probs.append("Tab character found — this project indents with 4 spaces.")
         if "hoser" in text:
             probs.append("The word 'hoser' found. Please keep it friendly.")
-        out = ("🍁 Sugar Bush report for your .maple code:\n" +
+        out = ("🌳 Sugar bush report:\n" +
                ("\n".join(probs) if probs else
-                "All balanced and polite. Pure 100% Grade A, eh."))
+                "Everything balanced. Pure 100% Grade A."))
         base.info_dialog(self.win, "Pour Report", out)
 
     def help(self):
         base.info_dialog(
-            self.win, "Maple Language help",
-            "A tiny Canadian pseudo-language, eh:\n"
+            self.win, "Maple language help",
+            "A tiny Canadian scripting language:\n"
             "  # comment\n"
-            "  import syrup\n"
-            "  def make(size, grade):\n"
-            '      boil("sap", temp=104)\n'
-            "      pour(grade)\n"
-            "Keywords: tap pour harvest boil sorry thanks please if else for while import def return\n"
-            "Builtins: pour tap warm cool print grade_a evaporate\n"
-            "File extension: .maple")
+            "  def make_syrup(size, grade):\n"
+            "      boil(\"sap\", temp=104)\n"
+            "      return pour(grade)\n"
+            "Calls: boil(item, temp) · tap(\"msg\") · pour(grade) · sorry\n"
+            "Bare 'sorry'/'thanks'/'please' on a line = just a note in the log.\n"
+            "Python-style if/for/while/def/return all work.\n"
+            "Press Run ▶ to execute. Files: .maple")
 
 
 def build(win, opts=None):
