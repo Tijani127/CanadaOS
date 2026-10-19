@@ -221,7 +221,8 @@ class Syrup(Gtk.Box):
                 continue
             m = re.match(r"^(sorry|thanks|please)\b\s*(?:#.*)?$", s)
             if m and "(" not in s:
-                body.append("__log('{}')".format(m.group(1)))
+                indent = line[:len(line) - len(line.lstrip())]
+                body.append("{}__log('{}')".format(indent, m.group(1)))
                 continue
             t = line
             t = re.sub(r"\b[sS]orry\s*\(", "__log(", t)
