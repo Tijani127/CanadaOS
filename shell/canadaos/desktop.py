@@ -133,6 +133,7 @@ class CanadaWindow(Gtk.Box):
             self.set_size_request(*self._prev_size)
             self.pos = self._prev_pos or (40, 40)
             self._was_max = False
+            self.remove_css_class("maximized")
         else:
             self._prev_size = self._size
             self._prev_pos = self.pos
@@ -140,6 +141,7 @@ class CanadaWindow(Gtk.Box):
             self._size = (canvas_w, canvas_h)
             self.set_size_request(canvas_w, canvas_h)
             self._was_max = True
+            self.add_css_class("maximized")
         self.desktop.reposition(self)
 
     # ---------- moving ----------

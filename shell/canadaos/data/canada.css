@@ -102,6 +102,11 @@
   opacity: 1.0;
   border-radius: 0;
 }
+/* Maximized: fully opaque and squared — nothing bleeds through. */
+.canada-window.maximized {
+  opacity: 1.0;
+  border-radius: 0;
+}
 .canada-window.focused .canada-header { border-bottom: 2px solid #d52b1e; }
 .canada-header {
   background: #20262e;
