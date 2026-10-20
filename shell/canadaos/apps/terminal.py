@@ -61,25 +61,41 @@ class Terminal(Gtk.Box):
         self.append(bar)
 
     def _spawn_shell(self, term, argv):
-        """Spawn the shell with a FULL env (PATH/HOME preserved), tolerating
-        different PyGObject spawn_async arities. Returns None on success."""
+        """Spawn the shell with a FULL env (PATH/HOME preserved).
+
+        VTE 0.80 (gir 3.91) changed spawn_async's shape to
+        (pty_flags, wd, argv, envv, spawn_flags, child_setup, timeout,
+        cancellable, callback): a plain-integer `timeout` sits AFTER
+        child_setup. The old arity-guessing attempts fed None into that
+        slot — "Argument 9 does not allow None as a value" — which
+        silently downgraded this terminal to the lite one on every boot
+        so far. Attempt shapes verified against the published PyGObject
+        Vte-3.81 API docs; every candidate supplies timeout=-1 now.
+        Returns None on success."""
         from gi.repository import GLib
         wd = os.path.expanduser("~")
         env = ["{}={}".format(k, v) for k, v in os.environ.items()]
         env.append("CANADAOS=1")
         env.append("TERM=xterm-256color")
         flags = GLib.SpawnFlags.DEFAULT
+
+        def _spawn_done(*_a):
+            pass
+
+        ptyf = self._vte.PtyFlags.DEFAULT
         last_err = None
         attempts = [
-            (self._vte.PtyFlags.DEFAULT, wd, argv, env, flags, None),
-            (self._vte.PtyFlags.DEFAULT, wd, argv, env, flags, None, None),
-            (self._vte.PtyFlags.DEFAULT, wd, argv, env, flags, None, None, None),
+            (ptyf, wd, argv, env, flags, None, -1, None),           # child_setup, timeout, cancellable
+            (ptyf, wd, argv, env, flags, None, -1, None, None),     # + explicit nullable callback
+            (ptyf, wd, argv, env, flags, None, -1, None, _spawn_done),
+            (ptyf, wd, argv, env, flags, None, None),               # legacy GTK3-era shapes
+            (ptyf, wd, argv, env, flags, None, None, None),
         ]
         for args in attempts:
             try:
                 term.spawn_async(*args)
                 return None
-            except TypeError as ex:
+            except (TypeError, ValueError) as ex:
                 last_err = ex
         return last_err
 
