@@ -1,4 +1,4 @@
-"""Sorry Terminal — real bash (VTE if available, PTY-lite otherwise), Canadian style."""
+"""Sorry Terminal — a normal terminal (real VTE/bash) with Canadian commands."""
 import os
 
 import gi
@@ -7,29 +7,6 @@ from gi.repository import Gtk, GLib
 
 from . import base
 from .base import app_root, button, row_label
-
-# Full 16-slot ANSI palette — VTE indexes palette[0] as black, so the list
-# must NOT skip it (an off-by-one here once made "white" text render in the
-# dim-grey slot, i.e. unreadable). Default text is the terminal's `fg`.
-PALETTE = [
-    "#10141a",  # 0  black (kept = background so black text vanishes, politely)
-    "#ff6b5e",  # 1  red
-    "#8fdc7a",  # 2  green
-    "#ffd580",  # 3  yellow
-    "#8ecbea",  # 4  blue
-    "#dda3ef",  # 5  magenta
-    "#6fdcc6",  # 6  cyan
-    "#e8edf2",  # 7  white (default text)
-    "#5c6670",  # 8  bright black (comments, dimmed paths)
-    "#d52b1e",  # 9  bright red
-    "#7ec142",  # 10 bright green
-    "#e9b44c",  # 11 bright yellow
-    "#5db6d7",  # 12 bright blue
-    "#c792ea",  # 13 bright magenta
-    "#3fc4a4",  # 14 bright cyan
-    "#ffffff",  # 15 bright white
-]
-
 
 def _load_vte():
     import importlib
@@ -62,10 +39,7 @@ class Terminal(Gtk.Box):
             return
 
         term = self._vte.Terminal()
-        if not self._apply_colors(term):
-            # Unreadable terminal is worse than a lite one.
-            self._lite_terminal(note="Terminal colour setup failed — using the lite terminal.")
-            return
+        self._apply_colors(term)
 
         err = self._spawn_shell(term, _shell_argv())
         if err is not None:
@@ -79,10 +53,12 @@ class Terminal(Gtk.Box):
 
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         bar.append(button("New shell", lambda *_: self.win.desktop.launch("terminal")))
-        bar.append(row_label("Real bash. Easter eggs: sorry · hockey · poursyrup · toque · timmy", "muted-label"))
+        bar.append(row_label(
+            "bash • commands: sorry · hockey · poursyrup · toque · beaver · timmy · maple-lint",
+            "muted-label"))
 
-        self.append(bar)
         self.append(scroller)
+        self.append(bar)
 
     def _spawn_shell(self, term, argv):
         """Spawn the shell with a FULL env (PATH/HOME preserved), tolerating
@@ -108,29 +84,24 @@ class Terminal(Gtk.Box):
         return last_err
 
     def _apply_colors(self, term):
-        """True when colours applied. Deniability is not an option here:
-        a silently wrong palette is how the terminal text went dark."""
+        """A normal terminal look: black background, light foreground,
+        VTE's own default ANSI palette. No custom palette — that is how
+        the text went dark last time."""
         from gi.repository import Gdk, Pango
-        def rgba(s):
-            c = Gdk.RGBA()
-            c.parse(s)
-            return c
-        fg = rgba("#e8edf2")   # high-contrast default text
-        bg = rgba("#10141a")
-        palette = [rgba(c) for c in PALETTE]
+        fg = Gdk.RGBA(); fg.parse("#e8e8e8")
+        bg = Gdk.RGBA(); bg.parse("#000000")
         try:
-            term.set_colors(fg, bg, palette)
+            term.set_colors(fg, bg, [])
             try:
-                term.set_bold_is_bright(True)
+                term.set_scrollback_lines(-1)  # unlimited, like a normal terminal
             except Exception:
                 pass
         except Exception:
-            return False
+            pass
         try:
-            term.set_font(Pango.font_description_from_string("Monospace 12"))
+            term.set_font(Pango.font_description_from_string("Monospace 11"))
         except Exception:
             pass
-        return True
 
     def _lite_terminal(self, note=None):
         """No VTE? No problem: a real bash over a PTY, line-entry style."""

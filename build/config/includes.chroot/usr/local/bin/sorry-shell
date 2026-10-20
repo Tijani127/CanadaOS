@@ -1,17 +1,14 @@
 #!/bin/bash
-# sorry-shell — the Sorry Terminal's shell. Real bash, wrapped warmly.
-# Sources Canadian aliases, prints a banner, then hands control to bash.
-if [ -r /etc/canadaos/sorryrc ]; then
-    . /etc/canadaos/sorryrc
-fi
-
+# sorry-shell — the Sorry Terminal's shell: plain bash with Canadian commands.
+# bash --rcfile keeps the aliases and prompt from /etc/canadaos/sorryrc.
 cat <<'BANNER'
-        🍁  Welcome to the SORRY TERMINAL  🍁
-     Real bash underneath. The shell is Canadian:
-     it apologizes before, during and after everything.
+Welcome to the Sorry Terminal (real bash).
 
-     Try: sorry, hockey, poursyrup, toque, beavertail,
-          timmy, beaver, maple-lint, canadaos-version
+Canadian commands: sorry, hockey, poursyrup, toque, beaver, beavertail,
+timmy, maple-lint, canadaos-version. Aliases: igloo (ls -la), hoser (whoami),
+brew (timmy), hockey-night, syrup-check.
+
+This shell apologizes before, during and after everything.
 BANNER
 
-exec bash -l
+exec bash --rcfile /etc/canadaos/sorryrc

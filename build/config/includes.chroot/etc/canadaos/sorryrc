@@ -1,14 +1,11 @@
-# /etc/canadaos/sorryrc — sourced by the Sorry Terminal (real bash inside).
-# Politeness modules are in /usr/local/bin, eh.
+# /etc/canadaos/sorryrc — the Sorry Terminal's bashrc: plain prompt, Canadian commands.
 
-PS1="\[\e[38;5;220m\]\u@canadaos\[\e[0m\]:\[\e[38;5;114m\]\w\[\e[0m\]\\$ "
+PS1='\u@canadaos:\w\$ '
 
-# core Canadian utilities
-alias sorry_patrol='sorry && sorry && sorry'
-alias brew='timmy'
+# core Canadian commands (each is a real program in /usr/local/bin)
 alias igloo='ls -la'
+alias brew='timmy'
 alias hoser='whoami'
-
-# browser-less bookmarks
 alias hockey-night='hockey'
 alias syrup-check='maple-lint'
+alias sorry_patrol='sorry && sorry && sorry'
