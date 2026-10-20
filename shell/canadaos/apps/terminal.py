@@ -8,10 +8,26 @@ from gi.repository import Gtk, GLib
 from . import base
 from .base import app_root, button, row_label
 
-PALETTE_DARK = [
-    "#10141a",  # background placeholder (slot 0 handled separately)
-    "#d52b1e", "#7ec142", "#e9b44c", "#5db6d7", "#c792ea", "#3fc4a4", "#e8edf2",
-    "#5c6670", "#ff6f61", "#9bd56d", "#ffd580", "#8ecbea", "#dda3ef", "#6fdcc6", "#ffffff",
+# Full 16-slot ANSI palette — VTE indexes palette[0] as black, so the list
+# must NOT skip it (an off-by-one here once made "white" text render in the
+# dim-grey slot, i.e. unreadable). Default text is the terminal's `fg`.
+PALETTE = [
+    "#10141a",  # 0  black (kept = background so black text vanishes, politely)
+    "#ff6b5e",  # 1  red
+    "#8fdc7a",  # 2  green
+    "#ffd580",  # 3  yellow
+    "#8ecbea",  # 4  blue
+    "#dda3ef",  # 5  magenta
+    "#6fdcc6",  # 6  cyan
+    "#e8edf2",  # 7  white (default text)
+    "#5c6670",  # 8  bright black (comments, dimmed paths)
+    "#d52b1e",  # 9  bright red
+    "#7ec142",  # 10 bright green
+    "#e9b44c",  # 11 bright yellow
+    "#5db6d7",  # 12 bright blue
+    "#c792ea",  # 13 bright magenta
+    "#3fc4a4",  # 14 bright cyan
+    "#ffffff",  # 15 bright white
 ]
 
 
@@ -46,7 +62,10 @@ class Terminal(Gtk.Box):
             return
 
         term = self._vte.Terminal()
-        self._apply_colors(term)
+        if not self._apply_colors(term):
+            # Unreadable terminal is worse than a lite one.
+            self._lite_terminal(note="Terminal colour setup failed — using the lite terminal.")
+            return
 
         err = self._spawn_shell(term, _shell_argv())
         if err is not None:
@@ -89,18 +108,29 @@ class Terminal(Gtk.Box):
         return last_err
 
     def _apply_colors(self, term):
-        from gi.repository import Gdk
+        """True when colours applied. Deniability is not an option here:
+        a silently wrong palette is how the terminal text went dark."""
+        from gi.repository import Gdk, Pango
         def rgba(s):
             c = Gdk.RGBA()
             c.parse(s)
             return c
+        fg = rgba("#e8edf2")   # high-contrast default text
         bg = rgba("#10141a")
-        fg = rgba("#e8edf2")
-        palette = [rgba(c) for c in PALETTE_DARK[1:]]
+        palette = [rgba(c) for c in PALETTE]
         try:
             term.set_colors(fg, bg, palette)
+            try:
+                term.set_bold_is_bright(True)
+            except Exception:
+                pass
+        except Exception:
+            return False
+        try:
+            term.set_font(Pango.font_description_from_string("Monospace 12"))
         except Exception:
             pass
+        return True
 
     def _lite_terminal(self, note=None):
         """No VTE? No problem: a real bash over a PTY, line-entry style."""
