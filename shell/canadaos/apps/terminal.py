@@ -1,5 +1,6 @@
 """Sorry Terminal — a normal terminal (real VTE/bash) with Canadian commands."""
 import os
+import sys
 
 import gi
 gi.require_version("Gtk", "4.0")
@@ -63,41 +64,91 @@ class Terminal(Gtk.Box):
     def _spawn_shell(self, term, argv):
         """Spawn the shell with a FULL env (PATH/HOME preserved).
 
-        VTE 0.80 (gir 3.91) changed spawn_async's shape to
-        (pty_flags, wd, argv, envv, spawn_flags, child_setup, timeout,
-        cancellable, callback): a plain-integer `timeout` sits AFTER
-        child_setup. The old arity-guessing attempts fed None into that
-        slot — "Argument 9 does not allow None as a value" — which
-        silently downgraded this terminal to the lite one on every boot
-        so far. Attempt shapes verified against the published PyGObject
-        Vte-3.81 API docs; every candidate supplies timeout=-1 now.
-        Returns None on success."""
+        VTE's spawn_async signature has churned between releases: the
+        child_setup / timeout / cancellable slots moved around, and None
+        in the wrong slot fails with "Argument 9 does not allow None as
+        a value" — which for several boots silently downgraded this app
+        into the lite terminal without any palette fix ever being seen.
+        Instead of guessing argument counts, we read the actual parameter
+        list from PyGObject's own introspection and fill exactly those
+        named parameters. Returns None on success."""
         from gi.repository import GLib
         wd = os.path.expanduser("~")
         env = ["{}={}".format(k, v) for k, v in os.environ.items()]
         env.append("CANADAOS=1")
         env.append("TERM=xterm-256color")
-        flags = GLib.SpawnFlags.DEFAULT
+        ptyf = self._vte.PtyFlags.DEFAULT
 
         def _spawn_done(*_a):
             pass
 
-        ptyf = self._vte.PtyFlags.DEFAULT
+        vals = {
+            "pty_flags": ptyf,
+            "working_directory": wd,
+            "argv": argv,
+            "envv": env,
+            "spawn_flags": GLib.SpawnFlags.DEFAULT,
+            "child_setup": None,
+            "child_setup_data": None,
+            "timeout": -1,
+            "cancellable": None,
+            "callback": _spawn_done,
+        }
+        names = self._spawn_param_names(term)
+        sys.stderr.write("canadaos: spawn_async params = {}\n".format(names))
         last_err = None
-        attempts = [
-            (ptyf, wd, argv, env, flags, None, -1, None),           # child_setup, timeout, cancellable
-            (ptyf, wd, argv, env, flags, None, -1, None, None),     # + explicit nullable callback
-            (ptyf, wd, argv, env, flags, None, -1, None, _spawn_done),
-            (ptyf, wd, argv, env, flags, None, None),               # legacy GTK3-era shapes
+        for drop_callback in (False, True):
+            kwargs = {n: v for n, v in vals.items() if n in names}
+            if drop_callback:
+                kwargs.pop("callback", None)
+            if not kwargs:
+                break
+            try:
+                term.spawn_async(**kwargs)
+                return None
+            except (TypeError, ValueError) as ex:
+                last_err = "spawn_async kwargs (callback={}) failed: {}".format(
+                    not drop_callback, ex)
+        # Last-ditch legacy positional shapes (older vte 2.91-era binding).
+        flags = GLib.SpawnFlags.DEFAULT
+        for args in (
+            (ptyf, wd, argv, env, flags, None, None),
             (ptyf, wd, argv, env, flags, None, None, None),
-        ]
-        for args in attempts:
+        ):
             try:
                 term.spawn_async(*args)
                 return None
             except (TypeError, ValueError) as ex:
-                last_err = ex
+                last_err = str(ex)
         return last_err
+
+    @staticmethod
+    def _spawn_param_names(term):
+        """Parameter names this installed VTE's spawn_async actually takes."""
+        import inspect
+        names = []
+        try:
+            sig = inspect.signature(term.spawn_async)
+            for p in sig.parameters.values():
+                if p.name in ("self",) or p.kind in (p.VAR_POSITIONAL, p.VAR_KEYWORD):
+                    continue
+                names.append(p.name)
+            if names:
+                return names
+        except (ValueError, TypeError):
+            pass
+        # Older PyGObject: parse the first line of __doc__.
+        import re
+        doc = (getattr(term.spawn_async, "__doc__", "") or "")
+        m = re.search(r"spawn_async\(([^)]*)\)", doc.split("\n", 1)[0])
+        if m:
+            for raw in m.group(1).split(","):
+                raw = raw.strip()
+                raw = raw.split(":")[0].split("=")[0].strip()
+                if raw in ("", "self", "user_data", "*user_data"):
+                    continue
+                names.append(raw)
+        return names
 
     def _apply_colors(self, term):
         """A normal terminal look: black background, light foreground,
