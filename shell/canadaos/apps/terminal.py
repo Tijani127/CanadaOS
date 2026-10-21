@@ -62,89 +62,102 @@ class Terminal(Gtk.Box):
         self.append(bar)
 
     def _spawn_shell(self, term, argv):
-        """Spawn the shell with a FULL env (PATH/HOME preserved).
+        """Spawn the shell, API-churn-proof.
 
-        VTE's spawn_async signature has churned between releases: the
-        child_setup / timeout / cancellable slots moved around, and None
-        in the wrong slot fails with "Argument 9 does not allow None as
-        a value" — which for several boots silently downgraded this app
-        into the lite terminal without any palette fix ever being seen.
-        Instead of guessing argument counts, we read the actual parameter
-        list from PyGObject's own introspection and fill exactly those
-        named parameters. Returns None on success."""
+        VTE's spawn_async signature has moved child_setup / timeout /
+        cancellable / callback slots around between releases, and None in
+        the wrong slot fails with "Argument 9 does not allow None as a
+        value" — which silently downgraded this app into the lite
+        terminal for several boots. Strategy now, in order:
+          1. spawn_sync with introspected kwargs — exists across VTE
+             versions, no callback, no timeout.
+          2. introspected spawn_async kwargs (with/without callback).
+          3. legacy positional shapes.
+        Every failure is written to stderr so CI can diagnose without
+        boiling another 10-minute ISO. Returns None on success."""
         from gi.repository import GLib
         wd = os.path.expanduser("~")
         env = ["{}={}".format(k, v) for k, v in os.environ.items()]
         env.append("CANADAOS=1")
         env.append("TERM=xterm-256color")
         ptyf = self._vte.PtyFlags.DEFAULT
+        flags = GLib.SpawnFlags.DEFAULT
 
         def _spawn_done(*_a):
             pass
 
-        vals = {
+        names = {
+            "spawn_sync": self._spawn_param_names(term, "spawn_sync"),
+            "spawn_async": self._spawn_param_names(term, "spawn_async"),
+        }
+        for meth in ("spawn_sync", "spawn_async"):
+            sys.stderr.write("canadaos: {} params = {}\n".format(meth, names[meth]))
+        common = {
             "pty_flags": ptyf,
             "working_directory": wd,
             "argv": argv,
             "envv": env,
-            "spawn_flags": GLib.SpawnFlags.DEFAULT,
+            "spawn_flags": flags,
             "child_setup": None,
             "child_setup_data": None,
-            "timeout": -1,
             "cancellable": None,
-            "callback": _spawn_done,
         }
-        names = self._spawn_param_names(term)
-        sys.stderr.write("canadaos: spawn_async params = {}\n".format(names))
-        last_err = None
+        async_vals = dict(common, timeout=-1, callback=_spawn_done)
+
+        attempts = []
+        attempts.append(("spawn_sync(kwargs)", term.spawn_sync, common))
         for drop_callback in (False, True):
-            kwargs = {n: v for n, v in vals.items() if n in names}
+            vals = dict(async_vals)
             if drop_callback:
-                kwargs.pop("callback", None)
-            if not kwargs:
-                break
+                vals.pop("callback", None)
+            attempts.append(("spawn_async(kwargs, callback={})".format(
+                not drop_callback), term.spawn_async, vals))
+        # Legacy positional shapes (older bindings / odd introspection).
+        attempts.append(("spawn_async(7 args)", term.spawn_async,
+                         (ptyf, wd, argv, env, flags, None, None)))
+        attempts.append(("spawn_async(8 args)", term.spawn_async,
+                         (ptyf, wd, argv, env, flags, None, None, None)))
+
+        last_err = None
+        for label, fn, args in attempts:
             try:
-                term.spawn_async(**kwargs)
+                if isinstance(args, dict):
+                    use = {k: v for k, v in args.items()
+                           if k in names["spawn_sync" if label.startswith("spawn_sync")
+                                         else "spawn_async"]}
+                    if not use:
+                        raise ValueError("no known parameters to pass")
+                    fn(**use)
+                else:
+                    fn(*args)
                 return None
-            except (TypeError, ValueError) as ex:
-                last_err = "spawn_async kwargs (callback={}) failed: {}".format(
-                    not drop_callback, ex)
-        # Last-ditch legacy positional shapes (older vte 2.91-era binding).
-        flags = GLib.SpawnFlags.DEFAULT
-        for args in (
-            (ptyf, wd, argv, env, flags, None, None),
-            (ptyf, wd, argv, env, flags, None, None, None),
-        ):
-            try:
-                term.spawn_async(*args)
-                return None
-            except (TypeError, ValueError) as ex:
+            except (TypeError, ValueError, GLib.Error) as ex:
                 last_err = str(ex)
+                sys.stderr.write("canadaos: {} failed: {}\n".format(label, ex))
         return last_err
 
     @staticmethod
-    def _spawn_param_names(term):
-        """Parameter names this installed VTE's spawn_async actually takes."""
+    def _spawn_param_names(term, meth):
+        """Parameter names the installed VTE's method actually takes."""
         import inspect
+        fn = getattr(term, meth)
         names = []
         try:
-            sig = inspect.signature(term.spawn_async)
+            sig = inspect.signature(fn)
             for p in sig.parameters.values():
-                if p.name in ("self",) or p.kind in (p.VAR_POSITIONAL, p.VAR_KEYWORD):
+                if p.name == "self" or p.kind in (p.VAR_POSITIONAL, p.VAR_KEYWORD):
                     continue
                 names.append(p.name)
             if names:
                 return names
         except (ValueError, TypeError):
             pass
-        # Older PyGObject: parse the first line of __doc__.
         import re
-        doc = (getattr(term.spawn_async, "__doc__", "") or "")
-        m = re.search(r"spawn_async\(([^)]*)\)", doc.split("\n", 1)[0])
+        doc = (getattr(fn, "__doc__", "") or "")
+        m = re.search(re.escape(meth) + r"\(([^)]*)\)", doc.split("\n", 1)[0])
         if m:
             for raw in m.group(1).split(","):
-                raw = raw.strip()
-                raw = raw.split(":")[0].split("=")[0].strip()
+                raw = raw.strip().split(":")[0].split("=")[0].strip()
                 if raw in ("", "self", "user_data", "*user_data"):
                     continue
                 names.append(raw)
