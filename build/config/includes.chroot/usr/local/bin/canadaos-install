@@ -48,7 +48,7 @@ parted -s "$TARGET" mkpart ROOT ext4 513MiB 100%
 partprobe "$TARGET" 2>/dev/null || sleep 1
 
 echo "2/7 Formatting..."
-mkfs.vfat -F 32 -n CANADAOS_EFI "$PART1" >/dev/null
+mkfs.vfat -F 32 -n CANADAOS "$PART1" >/dev/null
 mkfs.ext4 -F -L canadaos "$PART2" >/dev/null
 
 MNT=/mnt/canadaos-install
