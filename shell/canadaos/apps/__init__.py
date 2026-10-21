@@ -11,6 +11,7 @@ from .settings import build as build_settings            # noqa: F401
 from .files import build as build_files                  # noqa: F401
 from .hockey import build as build_hockey                # noqa: F401
 from .syrup import build as build_syrup                  # noqa: F401
+from .installer import build as build_installer          # noqa: F401
 
 
 @dataclass
@@ -48,6 +49,8 @@ APPS = [
             "Shootout simulator + NHLe scores."),
     AppInfo("settings", "Settings", "⚙️", build_settings, 760, 620, False,
             "Configure CanadaOS."),
+    AppInfo("installer", "Installer", "📀", build_installer, 880, 640, False,
+            "Install CanadaOS to a real disk (erases the target!)."),
     AppInfo("terminal", "Sorry Terminal", "💻", build_terminal, 900, 580, True,
             "Real bash with politeness layer."),
     AppInfo("syrup", "Maple Syrup Editor", "🍁", build_syrup, 1040, 700, True,

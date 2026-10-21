@@ -26,3 +26,11 @@ fonts-noto-color-emoji
 openbox
 xterm
 openssh-server
+
+# Disk installer (canadaos-install) + WM neighbours
+parted
+dosfstools
+squashfs-tools
+grub-pc-bin
+grub-efi-amd64-bin
+efibootmgr

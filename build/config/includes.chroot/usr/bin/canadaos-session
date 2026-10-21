@@ -1,7 +1,15 @@
 #!/bin/sh
-# CanadaOS X session: no window manager needed - the shell is a fullscreen
-# GTK app that draws its own windows, eh.
+# CanadaOS X session.
+# Openbox runs underneath as a plain window manager so GUI apps the user
+# installs later (apt install gimp ...) get a real titlebar, alt-tab and
+# close buttons instead of floating undecorated. The CanadaOS shell itself
+# is one fullscreen undecorated window, which openbox leaves alone.
 # Cairo renderer: VMs have no real GPU, and the GL renderer falls back to
 # slow software paths; cairo is steadier and snappier inside a VM.
 export GSK_RENDERER=cairo
+
+if command -v openbox >/dev/null 2>&1; then
+    openbox --sm-disable >/dev/null 2>&1 &
+fi
+
 exec /usr/bin/canadaos-shell

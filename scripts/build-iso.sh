@@ -18,6 +18,11 @@ chmod +x build/config/hooks/live/*.chroot 2>/dev/null || true
 chmod +x "$INC/usr/bin/canadaos-shell" "$INC/usr/bin/canadaos-session" "$INC/usr/bin/canadaos-debug-session"
 chmod +x "$INC/usr/local/bin/"* 2>/dev/null || true
 chmod +x scripts/*.sh
+# sudo ignores included files whose mode is not 0440 — git cannot record
+# that mode, so set it at build time, bullets over charm.
+if [ -f "$INC/etc/sudoers.d/01-canadaos" ]; then
+    chmod 0440 "$INC/etc/sudoers.d/01-canadaos"
+fi
 
 echo "⚙️   lb config …"
 cd build

@@ -1,0 +1,3 @@
+# The polite user may administer the machine without retyping 'live'.
+# (Toy distro for a fixed live user — this pairs with the disk installer.)
+user ALL=(ALL) NOPASSWD: ALL

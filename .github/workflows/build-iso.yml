@@ -65,6 +65,8 @@ jobs:
             fonts-noto-color-emoji fonts-dejavu adwaita-icon-theme
           rm -rf /tmp/canada-smoke && mkdir -p /tmp/canada-smoke/dist
           cp -r shell /tmp/canada-smoke/shell
+          bash -n build/config/includes.chroot/usr/local/bin/canadaos-install \
+            || { echo "canadaos-install has syntax errors"; exit 1; }
           cd /tmp/canada-smoke
           export GSK_RENDERER=cairo
           Xvfb :99 -screen 0 1280x800x24 &
@@ -72,7 +74,7 @@ jobs:
           sleep 2
           # App matrix: launch every app alone, screenshot, so app-level
           # crashes/appearance get caught without booting the ISO, eh.
-          for APP in paint notepad files settings hockey browser terminal syrup sadly; do
+          for APP in paint notepad files settings installer hockey browser terminal syrup sadly; do
             PYTHONPATH=/tmp/canada-smoke/shell CANADAOS_FORCE_DEV=1 \
               CANADAOS_SMOKE_APP=$APP DISPLAY=:99 \
               python3 -m canadaos.main > "smoke-$APP.log" 2>&1 &

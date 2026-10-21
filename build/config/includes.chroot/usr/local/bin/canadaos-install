@@ -1,0 +1,120 @@
+#!/bin/bash
+# canadaos-install — install CanadaOS from the live ISO onto a hard disk.
+# Usage (as root): canadaos-install </dev/sdX|/dev/nvme0n1|...>
+#
+# Copies the live squashfs (the exact booted system, all apps included)
+# to a fresh GPT disk: EFI System Partition + root ext4, installs GRUB
+# for the firmware in use (EFI or BIOS), and writes a proper fstab.
+set -euo pipefail
+
+fail() {
+    echo "FATAL: $*" >&2
+    exit 1
+}
+
+[ "$#" -eq 1 ] || fail "usage: canadaos-install <whole-disk-device>"
+TARGET="$1"
+
+case "$TARGET" in
+    /dev/nvme*|/dev/mmcblk*) PART1="${TARGET}p1"; PART2="${TARGET}p2";;
+    /dev/sd*|/dev/vd*|/dev/hd*) PART1="${TARGET}1"; PART2="${TARGET}2";;
+    *) fail "unsupported device path: $TARGET";;
+esac
+
+[ -b "$TARGET" ] || fail "$TARGET is not a block device"
+
+# Never install over something that is mounted (the live media, in case).
+for p in "$TARGET" "$PART1" "$PART2"; do
+    if grep -qs "$(basename "$p") " /proc/mounts; then
+        fail "$p is mounted (the live media?) — refusing"
+    fi
+done
+
+# Locate the live squashfs (Debian live-boot mount points).
+SQ=""
+for cand in /run/live/medium/live/filesystem.squashfs \
+            /lib/live/mount/medium/live/filesystem.squashfs; do
+    [ -f "$cand" ] && { SQ="$cand"; break; }
+done
+[ -n "$SQ" ] || fail "filesystem.squashfs not found — is this the live ISO?"
+
+echo "1/7 Partitioning $TARGET (GPT: ESP 512 MiB + root)..."
+umount -f "$PART1" 2>/dev/null || true
+umount -f "$PART2" 2>/dev/null || true
+parted -s "$TARGET" mklabel gpt
+parted -s "$TARGET" mkpart ESP fat32 1MiB 513MiB
+parted -s "$TARGET" set 1 esp on
+parted -s "$TARGET" mkpart ROOT ext4 513MiB 100%
+partprobe "$TARGET" 2>/dev/null || sleep 1
+
+echo "2/7 Formatting..."
+mkfs.vfat -F 32 -n CANADAOS_EFI "$PART1" >/dev/null
+mkfs.ext4 -F -L canadaos "$PART2" >/dev/null
+
+MNT=/mnt/canadaos-install
+mkdir -p "$MNT"
+echo "3/7 Mounting and copying the system from $SQ ..."
+mount "$PART2" "$MNT"
+unsquashfs -f -d "$MNT" "$SQ" >/dev/null 2>&1 || fail "unsquashfs failed"
+
+echo "4/7 Writing /etc/fstab and hostname..."
+mkdir -p "$MNT/boot/efi"
+mount "$PART1" "$MNT/boot/efi"
+ROOT_UUID=$(blkid -s UUID -o value "$PART2")
+ESP_UUID=$(blkid -s UUID -o value "$PART1")
+cat > "$MNT/etc/fstab" <<EOF
+UUID=$ROOT_UUID / ext4 defaults,relatime 0 1
+UUID=$ESP_UUID /boot/efi vfat umask=0077 0 1
+EOF
+echo canadaos > "$MNT/etc/hostname"
+
+echo "5/7 Preparing the installed system..."
+# A fresh machine-id avoids two hosts sharing one identity.
+rm -f "$MNT/etc/machine-id" "$MNT/var/lib/dbus/machine-id"
+: > "$MNT/etc/machine-id"
+# Boot into the real desktop session, not the debug session.
+if [ -f "$MNT/etc/lightdm/lightdm.conf.d/50-canadaos.conf" ]; then
+    sed -i 's/^autologin-session=.*/autologin-session=canadaos/' \
+        "$MNT/etc/lightdm/lightdm.conf.d/50-canadaos.conf"
+fi
+
+mount --bind /dev "$MNT/dev"
+mount --bind /dev/pts "$MNT/dev/pts"
+mount -t proc proc "$MNT/proc"
+mount --bind /sys "$MNT/sys"
+mount --bind /run "$MNT/run"
+
+cleanup_mounts() {
+    umount -f "$MNT/run" 2>/dev/null || true
+    umount -f "$MNT/sys" 2>/dev/null || true
+    umount -f "$MNT/proc" 2>/dev/null || true
+    umount -f "$MNT/dev/pts" 2>/dev/null || true
+    umount -f "$MNT/dev" 2>/dev/null || true
+    umount -f "$MNT/boot/efi" 2>/dev/null || true
+    umount -f "$MNT" 2>/dev/null || true
+}
+
+echo "6/7 Regenerating initramfs and installing the bootloader..."
+if ! chroot "$MNT" update-initramfs -u -k all 2>&1; then
+    echo "   (initramfs regeneration complained — continuing)" >&2
+fi
+
+if [ -d /sys/firmware/efi ]; then
+    echo "   EFI firmware detected."
+    chroot "$MNT" grub-install --target=x86_64-efi \
+        --efi-directory=/boot/efi --bootloader-id=CanadaOS \
+        || fail "grub-install (EFI) failed"
+else
+    echo "   BIOS firmware detected."
+    chroot "$MNT" grub-install --target=i386-pc "$TARGET" \
+        || fail "grub-install (BIOS) failed"
+fi
+chroot "$MNT" update-grub \
+    2>&1 | { grep -v "^Generating" || true; }
+
+echo "7/7 Cleaning up mounts..."
+cleanup_mounts
+sync
+
+echo "INSTALL OK"
+echo "CanadaOS is installed on $TARGET. Reboot and remove the live media."
